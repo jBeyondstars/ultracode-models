@@ -46,6 +46,8 @@ export type AgentRow = {
   parentId?: string
   /** Tokens its finished turns used, as the API counted them. */
   tokens?: number
+  /** What its finished turns cost at the Claude API's list prices, in US dollars, where its model has one. */
+  usd?: number
   /** When it started and last finished, in ms since the epoch. */
   startedAt?: number
   endedAt?: number
@@ -61,6 +63,11 @@ export type Stats = {
    * Absent from totals an older version of the mod kept, which did not count it.
    */
   cache?: { read: number; total: number }
+  /**
+   * What the tokens counted since this version whose model has a known price (`tokens`)
+   * cost at the Claude API's list prices, in US dollars (`usd`). Absent from older totals.
+   */
+  cost?: { usd: number; tokens: number }
 }
 
 declare module 'claude-code' {

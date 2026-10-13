@@ -1,6 +1,6 @@
 {
   "name": "ultracode-models",
-  "version": "0.4.0",
+  "version": "0.5.0",
   "description": "Sets the model and effort of every subagent (Agent tool, Ultracode workflow agents and their own subagents), with a pane and the /ultramodels command.",
   "author": {
     "name": "jBeyondstars"

@@ -38,6 +38,14 @@ describe('the banner', () => {
     expect(statsSvg(stats, 260)).not.toContain('from cache')
   })
 
+  test('the estimated price joins the numbers only when it fits whole', () => {
+    const stats = { agents: 3, tokens: { 'claude-haiku-5-5': 279_093 }, cache: { read: 151_759, total: 279_093 }, cost: { usd: 0.0182, tokens: 279_093 } }
+    expect(statsSvg(stats, 460)).toContain('3 subagents · 279k tokens · ≈ $0.018<tspan class="m" font-size="12.5" font-weight="400"> · 54% from cache</tspan>')
+    const narrow = statsSvg(stats, 300)
+    expect(narrow).toContain('>3 subagents · 279k tokens</text>')
+    expect(narrow).not.toContain('$')
+  })
+
   test('before any subagent, an empty track and no share', () => {
     const source = statsSvg({ agents: 0, tokens: {} }, 300)
     expect(source).toContain('No subagents yet')

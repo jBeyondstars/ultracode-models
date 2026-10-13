@@ -42,7 +42,7 @@ Models accepted as is: `haiku`, `sonnet`, `opus`, `fable`, `inherit` (no change)
 
 The pane (`/ultramodels`) reads from top to bottom:
 - **the mod's state**, on or off, and a button to toggle it;
-- **the session's counters**: how many subagents ran, the tokens they used, each model's share, and the share the prompt cache served. These numbers are exact: they are the API's own counts. Every request re-sends a subagent's whole context, so the total runs high, but most of it comes back from the cache, billed at a fraction of the input price;
+- **the session's counters**: how many subagents ran, the tokens they used, each model's share, an estimated price, and the share the prompt cache served. The token counts are exact: they are the API's own. Every request re-sends a subagent's whole context, so the total runs high, but most of it comes back from the cache, billed at a fraction of the input price. The price (`≈ $0.018`) is an estimate at the Claude API's list prices; a `+` after it means some tokens have no known price;
 - **model** and **effort**: one row of buttons each, the active option highlighted, one click to change;
 - **recent subagents**: the last 12. Each row shows a status mark (it spins while the agent works), the replaced model struck through when it is known for sure, the model that answered, the label, the effort, the duration and the tokens.
 
@@ -85,6 +85,7 @@ Settings persist across sessions, in the mod's storage.
 - The Workflow harness passes the user's original message to every agent. A small model like Haiku may take it as its own task when that message is itself an orchestration instruction ("launch 3 subagents…").
 - Aliases (`sonnet`…) are turned into full ids (`claude-sonnet-5-5`), honoring `ANTHROPIC_DEFAULT_SONNET_MODEL`, `ANTHROPIC_DEFAULT_OPUS_MODEL` and `ANTHROPIC_DEFAULT_HAIKU_MODEL` when they are set. On Bedrock, Vertex or a gateway, set those variables or give a full id with `model <id>`.
 - If the chosen model is not available to you, subagents fail and the mod shows a notification (one per workflow and model).
+- The price is an estimate. It uses the Claude API's list prices, not Bedrock's, Vertex's, a gateway's or negotiated ones, and prices cache writes at the 5-minute rate Claude Code uses for subagents: the counts the mod receives don't say which cache duration was billed. Fast mode and other pricing options are left out, and on a Pro or Max subscription you don't pay per token at all.
 
 ## Development
 

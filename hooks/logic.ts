@@ -184,6 +184,57 @@ export function totalTokens(usage: Usage): number {
   return (usage.input_tokens ?? 0) + (usage.output_tokens ?? 0) + (usage.cache_read_input_tokens ?? 0) + (usage.cache_creation_input_tokens ?? 0)
 }
 
+/** A model's list prices on the Claude API in US dollars per million tokens, up to a prompt size. */
+type PriceTier = { upTo?: number; input: number; output: number; cacheRead: number }
+
+/**
+ * The Claude API's list prices by model family, as Anthropic publishes them. Haiku 5.5 costs
+ * more once a request's prompt passes 100K tokens. A model missing here gets no estimate, and
+ * a gateway's, Bedrock's or Vertex's own prices are not these.
+ */
+const PRICES: Readonly<Record<string, readonly PriceTier[]>> = {
+  'claude-haiku-5-5': [
+    { upTo: 100_000, input: 0.1, output: 0.5, cacheRead: 0.01 },
+    { input: 0.5, output: 2.5, cacheRead: 0.05 },
+  ],
+  'claude-sonnet-5-5': [{ input: 2, output: 10, cacheRead: 0.2 }],
+  'claude-sonnet-5': [{ input: 2, output: 10, cacheRead: 0.2 }],
+  'claude-opus-5-5': [{ input: 4, output: 20, cacheRead: 0.2 }],
+  'claude-opus-5': [{ input: 5, output: 25, cacheRead: 0.5 }],
+  'claude-opus-4-8': [{ input: 5, output: 25, cacheRead: 0.5 }],
+  'claude-fable-5-1': [{ input: 10, output: 50, cacheRead: 0.25 }],
+  'claude-mythos-5-1': [{ input: 10, output: 50, cacheRead: 0.25 }],
+  'claude-fable-5': [{ input: 10, output: 50, cacheRead: 1 }],
+  'claude-mythos-5': [{ input: 10, output: 50, cacheRead: 1 }],
+}
+
+/** Cache writes cost this much more than input: the 5-minute cache, the one Claude Code writes for subagents. */
+const CACHE_WRITE = 1.25
+
+/**
+ * What requests cost at the Claude API's list prices, in US dollars, or undefined when their
+ * model has no known price. One request takes the tier its prompt's size falls in; a sum of
+ * several (`isOneRequest` false) takes the first, its size being no single request's.
+ */
+export function listPrice(usage: Usage & { model: string }, isOneRequest = true): number | undefined {
+  const tiers = PRICES[modelFamily(usage.model)]
+  const input = usage.input_tokens ?? 0
+  const read = usage.cache_read_input_tokens ?? 0
+  const write = usage.cache_creation_input_tokens ?? 0
+  const prompt = input + read + write
+  const tier = isOneRequest ? tiers?.find(one => one.upTo === undefined || prompt <= one.upTo) : tiers?.[0]
+  if (tier === undefined) return undefined
+  return (input * tier.input + write * tier.input * CACHE_WRITE + read * tier.cacheRead + (usage.output_tokens ?? 0) * tier.output) / 1_000_000
+}
+
+/** Dollars as the pane shows them: <$0.001, $0.018, $1.23, $1,235. */
+export function formatUsd(usd: number): string {
+  if (usd < 0.001) return '<$0.001'
+  if (usd < 0.1) return `$${usd.toFixed(3)}`
+  if (usd < 100) return `$${usd.toFixed(2)}`
+  return `$${Math.round(usd).toString().replace(/\B(?=(\d{3})+(?!\d))/g, ',')}`
+}
+
 /** A token count as the pane shows it: 999, 54k, 1.2M. */
 export function formatTokens(count: number): string {
   if (count >= 999_500) {
@@ -238,15 +289,38 @@ export function cacheShare(stats: Stats): number | undefined {
   return cache === undefined || cache.total <= 0 ? undefined : Math.round((cache.read / cache.total) * 100)
 }
 
-/** The session's numbers as one line: how many subagents, their tokens, each model's share and the cache's. */
+/**
+ * The session's cost at the Claude API's list prices, where its tokens have one: `isPartial`
+ * when some have none (their model has no known price, or an older version counted them).
+ */
+export function costEstimate(stats: Stats): { usd: number; isPartial: boolean } | undefined {
+  const cost = stats.cost
+  if (cost === undefined || cost.tokens <= 0) return undefined
+  return { usd: cost.usd, isPartial: cost.tokens < statsTotal(stats) }
+}
+
+/** The estimate as the pane writes it: ≈ $0.018, and a + when some tokens have no price. */
+export function priceText(stats: Stats): string | undefined {
+  const estimate = costEstimate(stats)
+  if (estimate === undefined) return undefined
+  const amount = estimate.usd < 0.001 ? formatUsd(estimate.usd) : `≈ ${formatUsd(estimate.usd)}`
+  return `${amount}${estimate.isPartial ? '+' : ''}`
+}
+
+/** The session's numbers as one line: how many subagents, their tokens, each model's share, the estimated price and the cache's share. */
 export function statsText(stats: Stats): string {
   if (stats.agents === 0) return 'This session: no subagents yet.'
   const agents = `${stats.agents} subagent${stats.agents > 1 ? 's' : ''}`
   const total = statsTotal(stats)
   if (total === 0) return `This session: ${agents}`
   const split = shares(stats).map(one => `${one.label} ${one.percent}%`).join(', ')
+  const price = priceText(stats)
   const cached = cacheShare(stats)
-  return `This session: ${agents} · ${formatTokens(total)} tokens (${split})${cached === undefined ? '' : ` · ${cached}% from cache`}`
+  return [
+    `This session: ${agents} · ${formatTokens(total)} tokens (${split})`,
+    ...(price === undefined ? [] : [`${price} at API list prices`]),
+    ...(cached === undefined ? [] : [`${cached}% from cache`]),
+  ].join(' · ')
 }
 
 /** What a row says after its model: its effort, then how long it ran and what it used. */

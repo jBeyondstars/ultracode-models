@@ -47,7 +47,8 @@ const RUNNING: AgentRow = {
 }
 
 type Sent = { agentId?: string; index: number; model: string; effort?: TurnStepInput['effort'] }
-type Seed = { store?: Record<string, unknown>; env?: Record<string, string>; agents?: AgentRow[]; stats?: Stats; clock?: boolean; cacheRead?: number }
+type Counts = { input_tokens?: number; output_tokens?: number; cache_read_input_tokens?: number; cache_creation_input_tokens?: number }
+type Seed = { store?: Record<string, unknown>; env?: Record<string, string>; agents?: AgentRow[]; stats?: Stats; clock?: boolean; usage?: Counts }
 
 /** The test's hooks stand for the engine beneath the plugin, and record what reaches it. */
 function engine(on: On, seed: Seed = {}) {
@@ -166,7 +167,7 @@ function engine(on: On, seed: Seed = {}) {
       answer: 'ok',
       toolUses: [],
       stopReason: 'end_turn',
-      usage: { model: e.model, input_tokens: 1, output_tokens: 1, cache_read_input_tokens: seed.cacheRead ?? 0, cache_creation_input_tokens: 0 },
+      usage: { model: e.model, input_tokens: 1, output_tokens: 1, cache_read_input_tokens: 0, cache_creation_input_tokens: 0, ...seed.usage },
     }
   })
   on('turn.complete', ($, e) => ({ text: e.answer }))
@@ -547,25 +548,51 @@ describe('the session totals', () => {
   })
 
   test('say how much of those tokens the prompt cache served', async ($, on) => {
-    engine(on, { cacheRead: 8 })
+    engine(on, { usage: { cache_read_input_tokens: 8 } })
     await start($)
     await run($, 'haiku')
     const agent = await $.agent.spawn(SPAWN)
     await step($, agent.agentId, 'high', 0, HAIKU)
     await step($, agent.agentId, 'high', 1, HAIKU)
     await complete($, agent.agentId ?? '', 'answer')
-    expect(await status($)).toContain('This session: 1 subagent · 20 tokens (Haiku 100%) · 80% from cache')
+    expect(await status($)).toContain('This session: 1 subagent · 20 tokens (Haiku 100%) · <$0.001 at API list prices · 80% from cache')
   })
 
-  test('totals an older version kept get a cache share for the new tokens only', async ($, on) => {
-    engine(on, { stats: { agents: 3, tokens: { [HAIKU]: 279_000 } }, cacheRead: 8 })
+  test('totals an older version kept get a cache share and a price for the new tokens only', async ($, on) => {
+    engine(on, { stats: { agents: 3, tokens: { [HAIKU]: 279_000 } }, usage: { cache_read_input_tokens: 8 } })
     await start($)
     await run($, 'haiku')
     const agent = await $.agent.spawn(SPAWN)
     await step($, agent.agentId, 'high', 0, HAIKU)
     await step($, agent.agentId, 'high', 1, HAIKU)
     await complete($, agent.agentId ?? '', 'answer')
-    expect(await status($)).toContain('This session: 4 subagents · 279k tokens (Haiku 100%) · 80% from cache')
+    expect(await status($)).toContain('This session: 4 subagents · 279k tokens (Haiku 100%) · <$0.001+ at API list prices · 80% from cache')
+  })
+
+  test('estimate the price request by request, each at its own tier', async ($, on) => {
+    // 190K prompt tokens a request: past Haiku 5.5's 100K tier, $0.085 each.
+    engine(on, { usage: { input_tokens: 10_000, output_tokens: 10_000, cache_read_input_tokens: 100_000, cache_creation_input_tokens: 80_000 } })
+    await start($)
+    await run($, 'haiku')
+    const agent = await $.agent.spawn(SPAWN)
+    await step($, agent.agentId, 'high', 0, HAIKU)
+    await step($, agent.agentId, 'high', 1, HAIKU)
+    await complete($, agent.agentId ?? '', 'answer')
+    const listed = await status($)
+    expect(listed).toContain('This session: 1 subagent · 400k tokens (Haiku 100%) · ≈ $0.17 at API list prices · 50% from cache')
+    expect(listed).toContain('"tokens":400000,"estimatedUsd":0.17')
+  })
+
+  test('no price for a model with none known', async ($, on) => {
+    engine(on)
+    await start($)
+    await run($, 'model my-gateway-sonnet')
+    const agent = await $.agent.spawn(SPAWN)
+    await step($, agent.agentId, 'high', 0, 'my-gateway-sonnet')
+    await complete($, agent.agentId ?? '', 'answer')
+    const listed = await status($)
+    expect(listed).toContain('This session: 1 subagent · 2 tokens (Other 100%) · 0% from cache')
+    expect(listed).not.toContain('estimatedUsd')
   })
 
   test('a turn whose requests went uncounted here takes the turn’s own sum', async ($, on) => {
@@ -581,7 +608,7 @@ describe('the session totals', () => {
       usage: { model: HAIKU, input_tokens: 1_000, output_tokens: 200, cache_read_input_tokens: 50_000, cache_creation_input_tokens: 0 },
     })
     expect(w.held.rows.find(row => row.agentId === 'agent-7')?.tokens).toBe(51_200)
-    expect(await status($)).toContain('This session: 1 subagent · 51k tokens (Haiku 100%) · 98% from cache')
+    expect(await status($)).toContain('This session: 1 subagent · 51k tokens (Haiku 100%) · <$0.001 at API list prices · 98% from cache')
   })
 
   test('how long a subagent ran comes from the clock', async ($, on) => {
@@ -634,7 +661,7 @@ describe('the pane', () => {
     const desktop = await $.ui.mount({ plugin: PLUGIN, surface: 'desktop', component: 'Pane', requestId: PANE, props })
     const drawings = await desktop.findAll({ type: 'Svg' })
     expect(drawings).toHaveLength(2)
-    expect(String(drawings[0]?.props.alt)).toBe('This session: 1 subagent · 2 tokens (Haiku 100%) · 0% from cache')
+    expect(String(drawings[0]?.props.alt)).toBe('This session: 1 subagent · 2 tokens (Haiku 100%) · <$0.001 at API list prices · 0% from cache')
     expect(String(drawings[1]?.props.source)).toContain('read:a')
     await desktop.unmount()
 

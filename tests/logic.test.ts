@@ -7,12 +7,15 @@ import {
   describeConfig,
   formatDuration,
   formatTokens,
+  formatUsd,
   isNoop,
+  listPrice,
   modelFamily,
   modelNote,
   normalizeConfig,
   originalModel,
   planFor,
+  priceText,
   printable,
   resolveModel,
   rowLine,
@@ -196,6 +199,35 @@ describe('texts', () => {
     expect(statsText(stats)).toBe('This session: 3 subagents · 279k tokens (Haiku 100%) · 54% from cache')
     expect(cacheShare({ agents: 3, tokens: { 'claude-haiku-5-5': 279_093 } })).toBeUndefined()
     expect(cacheShare({ agents: 1, tokens: {}, cache: { read: 0, total: 0 } })).toBeUndefined()
+  })
+
+  test('a request’s price at the Claude API’s list prices', () => {
+    // Rounded to a billionth of a dollar, so float sums compare.
+    const rounded = (usd: number | undefined) => (usd === undefined ? undefined : Math.round(usd * 1e9) / 1e9)
+    const request = { model: 'claude-haiku-5-5', input_tokens: 1_000, output_tokens: 1_000, cache_read_input_tokens: 10_000, cache_creation_input_tokens: 8_000 }
+    expect(rounded(listPrice(request))).toBe(0.0017)
+    // Past 100K prompt tokens Haiku 5.5 costs five times as much; a sum of requests stays on the first tier.
+    const long = { model: 'claude-haiku-5-5', input_tokens: 100_000, output_tokens: 1_000, cache_read_input_tokens: 0, cache_creation_input_tokens: 1_000 }
+    expect(rounded(listPrice(long))).toBe(0.053125)
+    expect(rounded(listPrice(long, false))).toBe(0.010625)
+    const opus = { model: 'us.anthropic.claude-opus-5-5-v1:0', input_tokens: 1_000_000, output_tokens: 0, cache_read_input_tokens: 0, cache_creation_input_tokens: 0 }
+    expect(rounded(listPrice(opus))).toBe(4)
+    const fable = { model: 'claude-fable-5-1', input_tokens: 0, output_tokens: 0, cache_read_input_tokens: 1_000_000, cache_creation_input_tokens: 0 }
+    expect(rounded(listPrice(fable))).toBe(0.25)
+    expect(listPrice({ ...request, model: 'my-gateway' })).toBeUndefined()
+  })
+
+  test('the estimate as the pane writes it, with a + when some tokens have no price', () => {
+    expect(formatUsd(0.0004)).toBe('<$0.001')
+    expect(formatUsd(0.0182)).toBe('$0.018')
+    expect(formatUsd(1.234)).toBe('$1.23')
+    expect(formatUsd(1_234.5)).toBe('$1,235')
+    const stats = { agents: 3, tokens: { 'claude-haiku-5-5': 279_093 }, cache: { read: 151_759, total: 279_093 }, cost: { usd: 0.0182, tokens: 279_093 } }
+    expect(priceText(stats)).toBe('≈ $0.018')
+    expect(statsText(stats)).toBe('This session: 3 subagents · 279k tokens (Haiku 100%) · ≈ $0.018 at API list prices · 54% from cache')
+    expect(priceText({ ...stats, cost: { usd: 0.0182, tokens: 200_000 } })).toBe('≈ $0.018+')
+    expect(priceText({ ...stats, cost: { usd: 0, tokens: 0 } })).toBeUndefined()
+    expect(priceText({ agents: 1, tokens: { 'claude-haiku-5-5': 10 } })).toBeUndefined()
   })
 
   test('drawn texts lose escape sequences and control characters', () => {

@@ -9,6 +9,7 @@ import {
   USAGE,
   describeConfig,
   isNoop,
+  listPrice,
   modelFamily,
   modelLabel,
   modelNote,
@@ -56,6 +57,10 @@ type Tracked = {
   usage: Record<string, number>
   /** Of those, the tokens the prompt cache served. */
   cached: number
+  /** What those requests cost at the Claude API's list prices, in US dollars, where their model has one. */
+  usd: number
+  /** The tokens that cost covers. */
+  priced: number
 }
 
 /** What the hooks share for this load of the module. */
@@ -132,7 +137,7 @@ function load($: EngineInterface, s: Session): Promise<void> {
     // A reload keeps $.state: subagents still running keep their plan.
     for (const row of await read($, agents)) {
       if (row.status !== 'running' || s.tracked.has(row.agentId)) continue
-      remember(s, row.agentId, { label: row.label, from: row.from, runId: row.runId, usage: {}, cached: 0, ...(row.plan === undefined ? {} : { plan: row.plan }) })
+      remember(s, row.agentId, { label: row.label, from: row.from, runId: row.runId, usage: {}, cached: 0, usd: 0, priced: 0, ...(row.plan === undefined ? {} : { plan: row.plan }) })
     }
     $.ui.status(statusLine(s.current))
   })().catch(error => {
@@ -282,6 +287,7 @@ export const register: Register = on => {
         effort: row.effort,
         answeredBy: row.answered,
         tokens: row.tokens,
+        estimatedUsd: row.usd === undefined ? undefined : Math.round(row.usd * 10_000) / 10_000,
         why: row.note,
       }),
     )
@@ -320,7 +326,7 @@ export const register: Register = on => {
       const agentId = started.agentId
       const label = printable(e.description) || e.subagentType
       const runId = e.workflow?.runId ?? ''
-      remember(s, agentId, { label, from: started.model, runId, usage: {}, cached: 0, ...(plan === undefined ? {} : { plan }) })
+      remember(s, agentId, { label, from: started.model, runId, usage: {}, cached: 0, usd: 0, priced: 0, ...(plan === undefined ? {} : { plan }) })
       release()
 
       const startedAt = await quietly($.clock.now())
@@ -367,8 +373,15 @@ export const register: Register = on => {
     // The tokens the API counted for this request, kept until the subagent's turn ends.
     if (answered.usage) {
       const family = modelFamily(answered.usage.model)
-      entry.usage[family] = (entry.usage[family] ?? 0) + totalTokens(answered.usage)
+      const used = totalTokens(answered.usage)
+      entry.usage[family] = (entry.usage[family] ?? 0) + used
       entry.cached += answered.usage.cache_read_input_tokens ?? 0
+      // Priced request by request: Haiku's tier follows each request's own prompt size.
+      const usd = listPrice(answered.usage)
+      if (usd !== undefined) {
+        entry.usd += usd
+        entry.priced += used
+      }
     }
 
     if (e.index === 0) {
@@ -403,8 +416,13 @@ export const register: Register = on => {
       const counted = Object.keys(entry.usage).length > 0
       const byModel = counted ? entry.usage : e.usage ? { [modelFamily(e.usage.model)]: totalTokens(e.usage) } : {}
       const cached = counted ? entry.cached : (e.usage?.cache_read_input_tokens ?? 0)
+      const turnPrice = counted || e.usage === undefined ? undefined : listPrice(e.usage, false)
+      const usd = counted ? entry.usd : (turnPrice ?? 0)
+      const priced = counted ? entry.priced : turnPrice === undefined || e.usage === undefined ? 0 : totalTokens(e.usage)
       entry.usage = {}
       entry.cached = 0
+      entry.usd = 0
+      entry.priced = 0
       const used = Object.values(byModel).reduce((sum, one) => sum + one, 0)
       const endedAt = await quietly($.clock.now())
       await quietly(
@@ -417,6 +435,7 @@ export const register: Register = on => {
                   status,
                   ...(by === undefined ? {} : { answered: by }),
                   ...(used > 0 ? { tokens: (row.tokens ?? 0) + used } : {}),
+                  ...(priced > 0 ? { usd: (row.usd ?? 0) + usd } : {}),
                   ...(endedAt === undefined ? {} : { endedAt }),
                 },
           ),
@@ -427,9 +446,10 @@ export const register: Register = on => {
           update($, stats, sums => {
             const tokens = { ...sums.tokens }
             for (const [family, count] of Object.entries(byModel)) tokens[family] = (tokens[family] ?? 0) + count
-            // Counted beside its own total: totals an older version kept have no cache count to share.
+            // Counted beside their own totals: totals an older version kept have no cache count or price.
             const cache = { read: (sums.cache?.read ?? 0) + cached, total: (sums.cache?.total ?? 0) + used }
-            return { ...sums, tokens, cache }
+            const cost = { usd: (sums.cost?.usd ?? 0) + usd, tokens: (sums.cost?.tokens ?? 0) + priced }
+            return { ...sums, tokens, cache, cost }
           }),
         )
       }

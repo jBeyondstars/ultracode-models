@@ -2,7 +2,7 @@
 // banner for the session's numbers, one list for the recent subagents. They
 // follow the surface's light or dark scheme; a running subagent's mark spins.
 import type { AgentRow, Stats } from '../types'
-import { WORKFLOW_AGENT_TYPE, cacheShare, formatTokens, modelKey, originalModel, rowLabel, rowMeta, shares, shortModel, shownModel, statsTotal } from './logic'
+import { WORKFLOW_AGENT_TYPE, cacheShare, formatTokens, modelKey, originalModel, priceText, rowLabel, rowMeta, shares, shortModel, shownModel, statsTotal } from './logic'
 
 const FONT = "-apple-system,BlinkMacSystemFont,'Segoe UI',system-ui,sans-serif"
 
@@ -55,7 +55,11 @@ export function statsSvg(stats: Stats, width: number): string {
   const head = `<text class="m" x="0" y="13" font-family="${FONT}" font-size="11.5">This session</text>`
     + (legend === '' ? '' : `<text x="${width}" y="13" text-anchor="end" font-family="${FONT}" font-size="11.5">${legend}</text>`)
   const agents = stats.agents === 0 ? 'No subagents yet' : `${stats.agents} subagent${stats.agents > 1 ? 's' : ''}`
-  const numbers = total > 0 ? `${agents} · ${formatTokens(total)} tokens` : agents
+  const tokens = total > 0 ? `${agents} · ${formatTokens(total)} tokens` : agents
+  // The estimated price joins them when it fits whole: a price cut short would mislead.
+  const price = total > 0 ? priceText(stats) : undefined
+  const priced = price === undefined ? undefined : `${tokens} · ${price}`
+  const numbers = priced !== undefined && textWidth(priced, 15) <= width - 4 ? priced : tokens
   // The cache's share follows the numbers, lighter, when the pane has room for it.
   const cached = total > 0 ? cacheShare(stats) : undefined
   const extra = cached === undefined ? '' : ` · ${cached}% from cache`
