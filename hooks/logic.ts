@@ -229,14 +229,24 @@ export function statsTotal(stats: Stats): number {
   return Object.values(stats.tokens).reduce((sum, one) => sum + one, 0)
 }
 
-/** The session's numbers as one line: how many subagents, their tokens, and each model's share. */
+/**
+ * The share of the session's tokens the prompt cache served, in whole percents:
+ * each request re-sends a subagent's whole context, and most of it comes back from the cache.
+ */
+export function cacheShare(stats: Stats): number | undefined {
+  const cache = stats.cache
+  return cache === undefined || cache.total <= 0 ? undefined : Math.round((cache.read / cache.total) * 100)
+}
+
+/** The session's numbers as one line: how many subagents, their tokens, each model's share and the cache's. */
 export function statsText(stats: Stats): string {
   if (stats.agents === 0) return 'This session: no subagents yet.'
   const agents = `${stats.agents} subagent${stats.agents > 1 ? 's' : ''}`
   const total = statsTotal(stats)
   if (total === 0) return `This session: ${agents}`
   const split = shares(stats).map(one => `${one.label} ${one.percent}%`).join(', ')
-  return `This session: ${agents} · ${formatTokens(total)} tokens (${split})`
+  const cached = cacheShare(stats)
+  return `This session: ${agents} · ${formatTokens(total)} tokens (${split})${cached === undefined ? '' : ` · ${cached}% from cache`}`
 }
 
 /** What a row says after its model: its effort, then how long it ran and what it used. */

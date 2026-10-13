@@ -2,6 +2,7 @@ import { describe, expect, test } from 'claude-code/testing'
 
 import {
   DEFAULT_CONFIG,
+  cacheShare,
   code,
   describeConfig,
   formatDuration,
@@ -187,6 +188,14 @@ describe('texts', () => {
     expect(statsText({ agents: 1, tokens: {} })).toBe('This session: 1 subagent')
     expect(statsText({ agents: 0, tokens: {} })).toBe('This session: no subagents yet.')
     expect(totalTokens({ input_tokens: 10, output_tokens: 5, cache_read_input_tokens: 100, cache_creation_input_tokens: null })).toBe(115)
+  })
+
+  test('the cache share, only where it was counted', () => {
+    const stats = { agents: 3, tokens: { 'claude-haiku-5-5': 279_093 }, cache: { read: 151_759, total: 279_093 } }
+    expect(cacheShare(stats)).toBe(54)
+    expect(statsText(stats)).toBe('This session: 3 subagents · 279k tokens (Haiku 100%) · 54% from cache')
+    expect(cacheShare({ agents: 3, tokens: { 'claude-haiku-5-5': 279_093 } })).toBeUndefined()
+    expect(cacheShare({ agents: 1, tokens: {}, cache: { read: 0, total: 0 } })).toBeUndefined()
   })
 
   test('drawn texts lose escape sequences and control characters', () => {

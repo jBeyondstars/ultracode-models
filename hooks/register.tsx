@@ -54,6 +54,8 @@ type Tracked = {
   plan?: Plan
   /** Tokens of its requests since its last finished turn, by model family. */
   usage: Record<string, number>
+  /** Of those, the tokens the prompt cache served. */
+  cached: number
 }
 
 /** What the hooks share for this load of the module. */
@@ -130,7 +132,7 @@ function load($: EngineInterface, s: Session): Promise<void> {
     // A reload keeps $.state: subagents still running keep their plan.
     for (const row of await read($, agents)) {
       if (row.status !== 'running' || s.tracked.has(row.agentId)) continue
-      remember(s, row.agentId, { label: row.label, from: row.from, runId: row.runId, usage: {}, ...(row.plan === undefined ? {} : { plan: row.plan }) })
+      remember(s, row.agentId, { label: row.label, from: row.from, runId: row.runId, usage: {}, cached: 0, ...(row.plan === undefined ? {} : { plan: row.plan }) })
     }
     $.ui.status(statusLine(s.current))
   })().catch(error => {
@@ -318,7 +320,7 @@ export const register: Register = on => {
       const agentId = started.agentId
       const label = printable(e.description) || e.subagentType
       const runId = e.workflow?.runId ?? ''
-      remember(s, agentId, { label, from: started.model, runId, usage: {}, ...(plan === undefined ? {} : { plan }) })
+      remember(s, agentId, { label, from: started.model, runId, usage: {}, cached: 0, ...(plan === undefined ? {} : { plan }) })
       release()
 
       const startedAt = await quietly($.clock.now())
@@ -366,6 +368,7 @@ export const register: Register = on => {
     if (answered.usage) {
       const family = modelFamily(answered.usage.model)
       entry.usage[family] = (entry.usage[family] ?? 0) + totalTokens(answered.usage)
+      entry.cached += answered.usage.cache_read_input_tokens ?? 0
     }
 
     if (e.index === 0) {
@@ -397,8 +400,11 @@ export const register: Register = on => {
       const status: AgentRow['status'] = e.reason === 'answer' ? 'done' : e.reason === 'aborted' ? 'aborted' : 'failed'
       const by = e.usage?.model
       // The requests' own counts, else the turn's sum (after a reload, the requests before it went uncounted here).
-      const byModel = Object.keys(entry.usage).length > 0 ? entry.usage : e.usage ? { [modelFamily(e.usage.model)]: totalTokens(e.usage) } : {}
+      const counted = Object.keys(entry.usage).length > 0
+      const byModel = counted ? entry.usage : e.usage ? { [modelFamily(e.usage.model)]: totalTokens(e.usage) } : {}
+      const cached = counted ? entry.cached : (e.usage?.cache_read_input_tokens ?? 0)
       entry.usage = {}
+      entry.cached = 0
       const used = Object.values(byModel).reduce((sum, one) => sum + one, 0)
       const endedAt = await quietly($.clock.now())
       await quietly(
@@ -421,7 +427,9 @@ export const register: Register = on => {
           update($, stats, sums => {
             const tokens = { ...sums.tokens }
             for (const [family, count] of Object.entries(byModel)) tokens[family] = (tokens[family] ?? 0) + count
-            return { ...sums, tokens }
+            // Counted beside its own total: totals an older version kept have no cache count to share.
+            const cache = { read: (sums.cache?.read ?? 0) + cached, total: (sums.cache?.total ?? 0) + used }
+            return { ...sums, tokens, cache }
           }),
         )
       }

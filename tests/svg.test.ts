@@ -32,6 +32,12 @@ describe('the banner', () => {
     expect(STATS_HEIGHT).toBe(50)
   })
 
+  test('the cache share follows the numbers, when the pane has room for it', () => {
+    const stats = { agents: 3, tokens: { 'claude-haiku-5-5': 279_093 }, cache: { read: 151_759, total: 279_093 } }
+    expect(statsSvg(stats, 400)).toContain('3 subagents · 279k tokens<tspan class="m" font-size="12.5" font-weight="400"> · 54% from cache</tspan>')
+    expect(statsSvg(stats, 260)).not.toContain('from cache')
+  })
+
   test('before any subagent, an empty track and no share', () => {
     const source = statsSvg({ agents: 0, tokens: {} }, 300)
     expect(source).toContain('No subagents yet')

@@ -2,7 +2,7 @@
 // banner for the session's numbers, one list for the recent subagents. They
 // follow the surface's light or dark scheme; a running subagent's mark spins.
 import type { AgentRow, Stats } from '../types'
-import { WORKFLOW_AGENT_TYPE, formatTokens, modelKey, originalModel, rowLabel, rowMeta, shares, shortModel, shownModel, statsTotal } from './logic'
+import { WORKFLOW_AGENT_TYPE, cacheShare, formatTokens, modelKey, originalModel, rowLabel, rowMeta, shares, shortModel, shownModel, statsTotal } from './logic'
 
 const FONT = "-apple-system,BlinkMacSystemFont,'Segoe UI',system-ui,sans-serif"
 
@@ -56,7 +56,12 @@ export function statsSvg(stats: Stats, width: number): string {
     + (legend === '' ? '' : `<text x="${width}" y="13" text-anchor="end" font-family="${FONT}" font-size="11.5">${legend}</text>`)
   const agents = stats.agents === 0 ? 'No subagents yet' : `${stats.agents} subagent${stats.agents > 1 ? 's' : ''}`
   const numbers = total > 0 ? `${agents} · ${formatTokens(total)} tokens` : agents
-  const line = `<text class="t" x="0" y="33" font-family="${FONT}" font-size="15" font-weight="600">${xml(fit(numbers, 15, width))}</text>`
+  // The cache's share follows the numbers, lighter, when the pane has room for it.
+  const cached = total > 0 ? cacheShare(stats) : undefined
+  const extra = cached === undefined ? '' : ` · ${cached}% from cache`
+  const hasRoom = extra !== '' && textWidth(numbers, 15) + textWidth(extra, 12.5) <= width - 8
+  const after = hasRoom ? `<tspan class="m" font-size="12.5" font-weight="400">${xml(extra)}</tspan>` : ''
+  const line = `<text class="t" x="0" y="33" font-family="${FONT}" font-size="15" font-weight="600">${xml(fit(numbers, 15, width))}${after}</text>`
 
   let bar = `<rect class="k" x="0" y="41" width="${width}" height="6" rx="3"/>`
   if (total > 0) {

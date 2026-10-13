@@ -42,7 +42,7 @@ Models accepted as is: `haiku`, `sonnet`, `opus`, `fable`, `inherit` (no change)
 
 The pane (`/ultramodels`) reads from top to bottom:
 - **the mod's state**, on or off, and a button to toggle it;
-- **the session's counters**: how many subagents ran, the tokens they used and each model's share. These numbers are exact: they are the API's own counts;
+- **the session's counters**: how many subagents ran, the tokens they used, each model's share, and the share the prompt cache served. These numbers are exact: they are the API's own counts. Every request re-sends a subagent's whole context, so the total runs high, but most of it comes back from the cache, billed at a fraction of the input price;
 - **model** and **effort**: one row of buttons each, the active option highlighted, one click to change;
 - **recent subagents**: the last 12. Each row shows a status mark (it spins while the agent works), the replaced model struck through when it is known for sure, the model that answered, the label, the effort, the duration and the tokens.
 

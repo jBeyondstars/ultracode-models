@@ -56,6 +56,11 @@ export type Stats = {
   agents: number
   /** Tokens by model family (`claude-haiku-5-5`), as the API counted them. */
   tokens: Record<string, number>
+  /**
+   * How many of the tokens counted alongside (`total`) the prompt cache served (`read`).
+   * Absent from totals an older version of the mod kept, which did not count it.
+   */
+  cache?: { read: number; total: number }
 }
 
 declare module 'claude-code' {

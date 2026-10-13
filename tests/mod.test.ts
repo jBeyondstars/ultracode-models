@@ -1,7 +1,7 @@
 import { describe, expect, mock, test } from 'claude-code/testing'
 import type { Engine, MockClock } from 'claude-code/testing'
 import type { AgentSpawnInput, HookStream, On, TurnStepInput, UiOpenResult, UiPane } from 'claude-code'
-import type { AgentRow, Config } from '../types'
+import type { AgentRow, Config, Stats } from '../types'
 
 const PLUGIN = 'ultracode-models'
 const PANE = 'ultracode-models'
@@ -47,7 +47,7 @@ const RUNNING: AgentRow = {
 }
 
 type Sent = { agentId?: string; index: number; model: string; effort?: TurnStepInput['effort'] }
-type Seed = { store?: Record<string, unknown>; env?: Record<string, string>; agents?: AgentRow[]; clock?: boolean }
+type Seed = { store?: Record<string, unknown>; env?: Record<string, string>; agents?: AgentRow[]; stats?: Stats; clock?: boolean; cacheRead?: number }
 
 /** The test's hooks stand for the engine beneath the plugin, and record what reaches it. */
 function engine(on: On, seed: Seed = {}) {
@@ -66,6 +66,7 @@ function engine(on: On, seed: Seed = {}) {
     placement: { isPlaced: true } as UiOpenResult,
     drop: undefined as string | undefined,
     held: { rows: seed.agents ?? [], version: seed.agents === undefined ? 0 : 1 },
+    sums: { value: seed.stats ?? ({ agents: 0, tokens: {} } as Stats), version: seed.stats === undefined ? 0 : 1 },
     clock: undefined as MockClock | undefined,
     gate: undefined as { arrive: () => void; opened: Promise<void> } | undefined,
     /** Holds the next spawns at the bottom: `reached` once one arrived, `release()` lets them start. */
@@ -109,6 +110,14 @@ function engine(on: On, seed: Seed = {}) {
       if (e.ifVersion !== undefined && e.ifVersion !== w.held.version) return { value: { isSet: false, version: w.held.version } }
       w.held = { rows: e.value, version: w.held.version + 1 }
       return { value: { isSet: true, version: w.held.version } }
+    })
+  }
+  if (seed.stats !== undefined) {
+    on('state.get', { plugin: 'ultracode-models', key: 'stats' }, () => ({ value: { value: w.sums.value, version: w.sums.version } }))
+    on('state.set', { plugin: 'ultracode-models', key: 'stats' }, ($, e) => {
+      if (e.ifVersion !== undefined && e.ifVersion !== w.sums.version) return { value: { isSet: false, version: w.sums.version } }
+      w.sums = { value: e.value, version: w.sums.version + 1 }
+      return { value: { isSet: true, version: w.sums.version } }
     })
   }
   on('session.start', ($, e) => ({ cwd: e.cwd }))
@@ -157,7 +166,7 @@ function engine(on: On, seed: Seed = {}) {
       answer: 'ok',
       toolUses: [],
       stopReason: 'end_turn',
-      usage: { model: e.model, input_tokens: 1, output_tokens: 1, cache_read_input_tokens: 0, cache_creation_input_tokens: 0 },
+      usage: { model: e.model, input_tokens: 1, output_tokens: 1, cache_read_input_tokens: seed.cacheRead ?? 0, cache_creation_input_tokens: 0 },
     }
   })
   on('turn.complete', ($, e) => ({ text: e.answer }))
@@ -537,8 +546,30 @@ describe('the session totals', () => {
     expect(await status($)).toContain('This session: 2 subagents · 6 tokens (Haiku 100%)')
   })
 
+  test('say how much of those tokens the prompt cache served', async ($, on) => {
+    engine(on, { cacheRead: 8 })
+    await start($)
+    await run($, 'haiku')
+    const agent = await $.agent.spawn(SPAWN)
+    await step($, agent.agentId, 'high', 0, HAIKU)
+    await step($, agent.agentId, 'high', 1, HAIKU)
+    await complete($, agent.agentId ?? '', 'answer')
+    expect(await status($)).toContain('This session: 1 subagent · 20 tokens (Haiku 100%) · 80% from cache')
+  })
+
+  test('totals an older version kept get a cache share for the new tokens only', async ($, on) => {
+    engine(on, { stats: { agents: 3, tokens: { [HAIKU]: 279_000 } }, cacheRead: 8 })
+    await start($)
+    await run($, 'haiku')
+    const agent = await $.agent.spawn(SPAWN)
+    await step($, agent.agentId, 'high', 0, HAIKU)
+    await step($, agent.agentId, 'high', 1, HAIKU)
+    await complete($, agent.agentId ?? '', 'answer')
+    expect(await status($)).toContain('This session: 4 subagents · 279k tokens (Haiku 100%) · 80% from cache')
+  })
+
   test('a turn whose requests went uncounted here takes the turn’s own sum', async ($, on) => {
-    const w = engine(on, { agents: [RUNNING], store: { config: HAIKU_MEDIUM } })
+    const w = engine(on, { agents: [RUNNING], stats: { agents: 1, tokens: {} }, store: { config: HAIKU_MEDIUM } })
     await start($)
     await $.turn.complete({
       agentId: 'agent-7',
@@ -550,6 +581,7 @@ describe('the session totals', () => {
       usage: { model: HAIKU, input_tokens: 1_000, output_tokens: 200, cache_read_input_tokens: 50_000, cache_creation_input_tokens: 0 },
     })
     expect(w.held.rows.find(row => row.agentId === 'agent-7')?.tokens).toBe(51_200)
+    expect(await status($)).toContain('This session: 1 subagent · 51k tokens (Haiku 100%) · 98% from cache')
   })
 
   test('how long a subagent ran comes from the clock', async ($, on) => {
@@ -602,7 +634,7 @@ describe('the pane', () => {
     const desktop = await $.ui.mount({ plugin: PLUGIN, surface: 'desktop', component: 'Pane', requestId: PANE, props })
     const drawings = await desktop.findAll({ type: 'Svg' })
     expect(drawings).toHaveLength(2)
-    expect(String(drawings[0]?.props.alt)).toBe('This session: 1 subagent · 2 tokens (Haiku 100%)')
+    expect(String(drawings[0]?.props.alt)).toBe('This session: 1 subagent · 2 tokens (Haiku 100%) · 0% from cache')
     expect(String(drawings[1]?.props.source)).toContain('read:a')
     await desktop.unmount()
 
