@@ -1,97 +1,105 @@
 # ultracode-models
 
-Un mod Claude Code (terminal et Desktop) pour choisir **le modèle et l'effort de tous les sous-agents** :
-- ceux que lance l'outil Agent ;
-- ceux que démarre `agent()` dans un workflow Ultracode ;
-- les sous-agents qu'ils lancent eux-mêmes.
+A Claude Code mod (terminal and Desktop) that sets **the model and effort of every subagent**:
+- the ones the Agent tool launches;
+- the ones `agent()` starts in an Ultracode workflow;
+- the subagents those launch in turn.
 
-Si vous choisissez Haiku, **tous** les sous-agents tournent sur Haiku, quoi que demande Claude ou le script du workflow. La conversation principale, elle, n'est jamais modifiée.
+Pick Haiku and **every** subagent runs on Haiku, whatever Claude or the workflow script asks for. The main conversation is never changed.
 
-## Utilisation
+Its interface (pane, command replies, notifications) is in French.
 
-| Commande | Effet |
-| --- | --- |
-| `/ultramodels` | ouvre ou ferme le panneau de réglages |
-| `/ultramodels haiku` | modèle de tous les sous-agents |
-| `/ultramodels sonnet medium` | modèle et effort de tous les sous-agents |
-| `/ultramodels effort low` | change seulement l'effort |
-| `/ultramodels model <identifiant> [effort]` | n'importe quel identifiant de modèle (ARN Bedrock, passerelle…) |
-| `/ultramodels on`, `off`, `status`, `reset` | activer, désactiver, afficher les réglages, tout remettre à « hérité » |
-| `/ultramodels log clear` | retire les sous-agents terminés de la liste du panneau |
+## Install
 
-Modèles acceptés directement : `haiku`, `sonnet`, `opus`, `fable`, `inherit` (aucun changement), ou un identifiant contenant `claude-` (par exemple `claude-opus-4-8`). Pour tout autre identifiant, utilisez `model <identifiant>`. Efforts : `low`, `medium`, `high`, `xhigh`, `max` ou `inherit`.
-
-Le **panneau** (`/ultramodels`) se lit de haut en bas :
-- **l'état** du mod (● Actif / ○ Désactivé) et le bouton pour le changer ;
-- **les compteurs de la session** : nombre de sous-agents, tokens consommés et part de chaque modèle. Ces chiffres sont exacts : ce sont ceux de l'API ;
-- **Modèle** et **Effort** : une rangée de boutons chacun, l'option active en surbrillance, un clic suffit ;
-- **Récents** : les 12 derniers sous-agents. Chaque ligne montre une marque d'état (qui tourne tant que l'agent travaille), le modèle remplacé barré quand il est connu avec certitude, le modèle qui a répondu, le label, l'effort, la durée et les tokens.
-
-Sur Desktop, VS Code et mobile, les compteurs et la liste sont dessinés en SVG et suivent le thème clair ou sombre. Sur le terminal, ils s'affichent en texte, et des raccourcis marchent quand le panneau a le clavier :
-- `h` `s` `o` `f` `i` pour le modèle (Haiku, Sonnet, Opus, Fable, Hérité) ;
-- `0` à `5` pour l'effort ;
-- `a` pour activer ou désactiver ;
-- `c` pour effacer.
-
-Le panneau n'affiche pas d'« économies en dollars », parce qu'on ne peut pas les calculer correctement :
-- on ignore ce que le modèle d'origine aurait consommé (autres réponses, autre tokenizer) ;
-- l'API ne dit pas à quel tarif de cache les écritures ont été facturées.
-
-Vous pouvez aussi demander à Claude : « passe tous les sous-agents sur Haiku ». Le mod lui fournit deux outils :
-- `status` affiche les réglages et les derniers sous-agents ;
-- `configure` reprend la syntaxe de la commande. Il n'est utilisable que depuis la conversation principale.
-
-À chaque changement de réglages, et après une compaction, Claude reçoit une courte note avec le prompt suivant.
-
-## Fonctionnement
-
-Le mod applique le même réglage à chaque sous-agent, de la façon que le moteur permet :
-- **Sous-agent ordinaire** (outil Agent, sous-agent d'un sous-agent) : le modèle est fixé dès le lancement (hook `agent.spawn`). Claude Code sait donc qu'il tourne sur Haiku, et le paramètre `model` de l'appel est remplacé.
-- **Agent de workflow** (`agent()`) et **fork** : le moteur ne permet pas de les modifier au lancement. Le mod réécrit donc le modèle de **chaque requête** avant l'envoi (hook `turn.step`).
-- **L'effort** est réécrit sur chaque requête, pour tous.
-
-Le réglage est figé au lancement de chaque sous-agent : le modifier n'affecte que les sous-agents lancés ensuite. Les sous-agents en cours gardent leur réglage même si le mod est rechargé.
-
-Si le moteur bascule de lui-même une requête sur un modèle de repli (après un refus, par exemple), le mod laisse passer ce choix.
-
-Les réglages sont conservés d'une session à l'autre, dans le stockage du mod.
-
-## Limites connues
-
-- Un agent lancé avec `isolation: 'remote'` tourne dans le cloud et ne passe pas par les hooks locaux : il n'est pas redirigé.
-- Si le moteur relance un agent de workflow bloqué sous un nouvel identifiant, cette relance n'est pas reconnue.
-- Un agent de workflow ou un fork redirigé a reçu une invite système préparée pour son modèle d'origine : il peut se croire Opus alors qu'il tourne sur Haiku. Le modèle affiché après la flèche dans le panneau (et `answeredBy` dans l'outil `status`) est celui qu'indique l'API.
-- Le harnais Workflow transmet à chaque agent le message d'origine de l'utilisateur. Un petit modèle comme Haiku peut le prendre pour sa propre tâche quand ce message est lui-même une consigne d'orchestration (« lance 3 sous-agents… »).
-- Les alias (`sonnet`…) sont traduits en identifiants complets (`claude-sonnet-5-5`), en respectant `ANTHROPIC_DEFAULT_SONNET_MODEL`, `ANTHROPIC_DEFAULT_OPUS_MODEL` et `ANTHROPIC_DEFAULT_HAIKU_MODEL` s'ils sont définis. Sur Bedrock, Vertex ou une passerelle, définissez ces variables ou indiquez un identifiant complet avec `model <identifiant>`.
-- Si le modèle choisi ne vous est pas accessible, les sous-agents échouent et le mod affiche une notification (une par workflow et par modèle).
-
-## Installation
-
-Dans Claude Code lancé depuis un terminal (`claude`), tapez :
+In Claude Code started from a terminal (`claude`), type:
 
 ```
 /plugin install ultracode-models --marketplace jBeyondstars/ultracode-models
 ```
 
-Répondez `y` pour ajouter le marketplace, puis validez la portée « user » avec Entrée. Le mod est actif tout de suite, puis dans chaque session lancée ensuite, y compris celles de l'onglet Code de l'app Desktop (la commande `/plugin` n'y est pas disponible, d'où le terminal).
+Answer `y` to add the marketplace, then press Enter to install at user scope. The mod is active right away, and in every session started afterwards, including those of the Desktop app's Code tab (`/plugin` is not available there, hence the terminal).
 
-Pour essayer une copie locale sans l'installer : `claude --plugin-dir <dossier>`, ou ajoutez le dossier à `CLAUDE_CODE_PLUGIN_DIRS` dans le bloc `env` de `~/.claude/settings.json` (cela marche aussi pour les sessions lancées par l'app Desktop).
+To try a local copy without installing it: `claude --plugin-dir <folder>`, or add the folder to `CLAUDE_CODE_PLUGIN_DIRS` in the `env` block of `~/.claude/settings.json` (this also works for sessions the Desktop app starts).
 
-## Développement
+## Usage
+
+| Command | Effect |
+| --- | --- |
+| `/ultramodels` | opens or closes the settings pane |
+| `/ultramodels haiku` | sets the model of every subagent |
+| `/ultramodels sonnet medium` | sets the model and effort of every subagent |
+| `/ultramodels effort low` | changes only the effort |
+| `/ultramodels model <id> [effort]` | any model id (Bedrock ARN, gateway…) |
+| `/ultramodels on`, `off`, `status`, `reset` | enables, disables, shows the settings, resets everything to inherit |
+| `/ultramodels log clear` | removes finished subagents from the pane's list |
+| `/ultramodels help` | lists the commands |
+
+Models accepted as is: `haiku`, `sonnet`, `opus`, `fable`, `inherit` (no change), or an id containing `claude-` (for example `claude-opus-4-8`). For any other id, use `model <id>`. Efforts: `low`, `medium`, `high`, `xhigh`, `max` or `inherit`.
+
+### The pane
+
+The pane (`/ultramodels`) reads from top to bottom:
+- **the mod's state**, on or off, and a button to toggle it;
+- **the session's counters**: how many subagents ran, the tokens they used and each model's share. These numbers are exact: they are the API's own counts;
+- **model** and **effort**: one row of buttons each, the active option highlighted, one click to change;
+- **recent subagents**: the last 12. Each row shows a status mark (it spins while the agent works), the replaced model struck through when it is known for sure, the model that answered, the label, the effort, the duration and the tokens.
+
+On Desktop, VS Code and mobile, the counters and the list are drawn as SVG and follow the light or dark theme. In the terminal they are plain text, and these keys work while the pane has focus:
+- `h` `s` `o` `f` `i` for the model (Haiku, Sonnet, Opus, Fable, inherit);
+- `0` to `5` for the effort;
+- `a` to enable or disable the mod;
+- `c` to clear the list.
+
+The pane shows no "dollars saved", because they cannot be computed correctly:
+- what the original model would have used is unknown (other answers, another tokenizer);
+- the API does not say at which cache rate writes were billed.
+
+### Asking Claude
+
+You can also ask Claude to "put every subagent on Haiku". The mod gives it two tools:
+- `status` shows the settings and the latest subagents;
+- `configure` takes the command's arguments. It only works from the main conversation.
+
+Whenever the settings change, and after a compaction, Claude gets a short note with the next prompt.
+
+## How it works
+
+The mod applies the same setting to every subagent, in whichever way the engine allows:
+- **Ordinary subagent** (Agent tool, a subagent's own subagent): the model is set at launch (`agent.spawn` hook). Claude Code therefore knows it runs on Haiku, and the call's `model` parameter is replaced.
+- **Workflow agent** (`agent()`) and **fork**: the engine does not allow changing them at launch, so the mod rewrites the model of **every request** before it is sent (`turn.step` hook).
+- **Effort** is rewritten on every request, for all of them.
+
+The setting is fixed when each subagent starts: changing it only affects subagents launched afterwards. Running subagents keep their setting even if the mod reloads.
+
+If the engine itself switches a request to a fallback model (after a refusal, for example), the mod lets that choice through.
+
+Settings persist across sessions, in the mod's storage.
+
+## Known limitations
+
+- An agent launched with `isolation: 'remote'` runs in the cloud and does not go through local hooks: it is not redirected.
+- If the engine restarts a stuck workflow agent under a new id, that restart is not recognized.
+- A redirected workflow agent or fork received a system prompt written for its original model: it may believe it is Opus while running on Haiku. The model shown after the arrow in the pane (and `answeredBy` in the `status` tool) is the one the API reports.
+- The Workflow harness passes the user's original message to every agent. A small model like Haiku may take it as its own task when that message is itself an orchestration instruction ("launch 3 subagents…").
+- Aliases (`sonnet`…) are turned into full ids (`claude-sonnet-5-5`), honoring `ANTHROPIC_DEFAULT_SONNET_MODEL`, `ANTHROPIC_DEFAULT_OPUS_MODEL` and `ANTHROPIC_DEFAULT_HAIKU_MODEL` when they are set. On Bedrock, Vertex or a gateway, set those variables or give a full id with `model <id>`.
+- If the chosen model is not available to you, subagents fail and the mod shows a notification (one per workflow and model).
+
+## Development
 
 ```bash
 claude plugin validate .
 claude plugin test .
 ```
 
-`tsc -p .` vérifie les types une fois que Claude Code a chargé le mod (avec `--plugin-dir`, par exemple) : il écrit alors ses types dans `.claude-plugin/types/`, un dossier que git ignore.
+`tsc -p .` type-checks the mod once Claude Code has loaded it (with `--plugin-dir`, for example): Claude Code then writes its types to `.claude-plugin/types/`, a folder git ignores.
 
-Les tests couvrent :
-- la logique pure, dans `tests/logic.test.ts` ;
-- le mod complet sur un moteur simulé par le kit de test, dans `tests/mod.test.ts`.
+The tests cover:
+- the pure logic, in `tests/logic.test.ts`;
+- the SVG drawings, in `tests/svg.test.ts`;
+- the whole mod, on an engine the test kit simulates, in `tests/mod.test.ts`.
 
-Côté mod, ils vérifient notamment :
-- chaque sorte de sous-agent : outil Agent, agent de workflow, fork, sous-agent d'un sous-agent ;
-- que la conversation principale n'est pas touchée ;
-- le rechargement, l'attente d'un lancement, le modèle de repli du moteur ;
-- la note au modèle, les outils, et le panneau sur terminal, desktop et mobile.
+On the mod side, they check in particular:
+- every kind of subagent: Agent tool, workflow agent, fork, a subagent's own subagent;
+- that the main conversation is left alone;
+- reloads, waiting for a launch, the engine's fallback model;
+- the note to the model, the tools, and the pane on terminal, desktop and mobile.
