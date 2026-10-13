@@ -30,18 +30,18 @@ const config = (patch: Partial<Config>): Config => ({ ...DEFAULT_CONFIG, ...patc
 
 describe('planFor', () => {
   test('changes nothing by default', () => {
-    expect(planFor(DEFAULT_CONFIG)).toEqual({ note: 'hérité' })
+    expect(planFor(DEFAULT_CONFIG)).toEqual({ note: 'inherited' })
     expect(isNoop(DEFAULT_CONFIG)).toBe(true)
   })
 
   test('one model and one effort for every subagent', () => {
-    expect(planFor(config({ model: 'haiku', effort: 'medium' }))).toEqual({ plan: { model: 'haiku', effort: 'medium' }, note: 'réglage du mod' })
-    expect(planFor(config({ model: 'haiku' }))).toEqual({ plan: { model: 'haiku' }, note: 'réglage du mod' })
-    expect(planFor(config({ effort: 'low' }))).toEqual({ plan: { effort: 'low' }, note: 'réglage du mod' })
+    expect(planFor(config({ model: 'haiku', effort: 'medium' }))).toEqual({ plan: { model: 'haiku', effort: 'medium' }, note: 'mod setting' })
+    expect(planFor(config({ model: 'haiku' }))).toEqual({ plan: { model: 'haiku' }, note: 'mod setting' })
+    expect(planFor(config({ effort: 'low' }))).toEqual({ plan: { effort: 'low' }, note: 'mod setting' })
   })
 
   test('a disabled mod changes nothing', () => {
-    expect(planFor(config({ enabled: false, model: 'haiku' }))).toEqual({ note: 'mod désactivé' })
+    expect(planFor(config({ enabled: false, model: 'haiku' }))).toEqual({ note: 'mod off' })
   })
 })
 
@@ -89,7 +89,7 @@ describe('runCommand', () => {
   test('full ids: with claude- directly, any id through model', () => {
     expect(runCommand(DEFAULT_CONFIG, 'claude-opus-4-8')).toMatchObject({ kind: 'set', config: { model: 'claude-opus-4-8' } })
     expect(runCommand(DEFAULT_CONFIG, 'model my-gateway-sonnet low')).toMatchObject({ kind: 'set', config: { model: 'my-gateway-sonnet', effort: 'low' } })
-    expect(runCommand(DEFAULT_CONFIG, 'my-gateway-sonnet')).toMatchObject({ kind: 'error', message: expect.stringContaining('Modèle inconnu') })
+    expect(runCommand(DEFAULT_CONFIG, 'my-gateway-sonnet')).toMatchObject({ kind: 'error', message: expect.stringContaining('Unknown model') })
     expect(runCommand(DEFAULT_CONFIG, 'sonnet extreme').kind).toBe('error')
   })
 
@@ -116,8 +116,8 @@ describe('normalizeConfig', () => {
 describe('texts', () => {
   test('the status line shows only while the mod changes something', () => {
     expect(statusLine(DEFAULT_CONFIG)).toBeUndefined()
-    expect(statusLine(config({ model: 'haiku', effort: 'medium' }))).toBe('Sous-agents : Haiku 5.5 · medium')
-    expect(statusLine(config({ effort: 'low' }))).toBe('Sous-agents : modèle hérité · low')
+    expect(statusLine(config({ model: 'haiku', effort: 'medium' }))).toBe('Subagents: Haiku 5.5 · medium')
+    expect(statusLine(config({ effort: 'low' }))).toBe('Subagents: inherited model · low')
     expect(statusLine(config({ model: 'haiku', enabled: false }))).toBeUndefined()
   })
 
@@ -130,8 +130,8 @@ describe('texts', () => {
 
   test('the reply names the model and the effort', () => {
     const reply = describeConfig(config({ model: 'haiku', effort: 'medium' }))
-    expect(reply).toContain('- Modèle : Haiku 5.5')
-    expect(reply).toContain('- Effort : medium')
+    expect(reply).toContain('- Model: Haiku 5.5')
+    expect(reply).toContain('- Effort: medium')
   })
 
   test('rows lead with the model, so a cut keeps it', () => {
@@ -144,16 +144,16 @@ describe('texts', () => {
       from: OPUS,
       sent: 'claude-haiku-5-5',
       effort: 'medium',
-      note: 'réglage du mod',
+      note: 'mod setting',
       status: 'done',
       startedAt: 1_000,
       endedAt: 9_400,
       tokens: 54_321,
     }
-    expect(rowLine(row)).toBe('✓ #3 Opus 5.5 → Haiku 5.5 · verify:auth · medium · 8 s · 54 k tokens')
+    expect(rowLine(row)).toBe('✓ #3 Opus 5.5 → Haiku 5.5 · verify:auth · medium · 8s · 54k tokens')
     const plain: AgentRow = { ...row, runId: '', index: 0, label: 'Explore the code', type: 'Explore', status: 'running', from: 'claude-haiku-5-5' }
-    expect(rowLine(plain)).toBe('… Haiku 5.5 · Explore the code [Explore] · medium · en cours')
-    expect(rowLine({ ...plain, status: 'aborted', asked: 'opus' })).toBe('■ Opus 5.5 → Haiku 5.5 · Explore the code [Explore] · medium · 8 s · 54 k tokens')
+    expect(rowLine(plain)).toBe('… Haiku 5.5 · Explore the code [Explore] · medium · running')
+    expect(rowLine({ ...plain, status: 'aborted', asked: 'opus' })).toBe('■ Opus 5.5 → Haiku 5.5 · Explore the code [Explore] · medium · 8s · 54k tokens')
   })
 
   test('only a model known for sure shows as the one replaced', () => {
@@ -164,16 +164,16 @@ describe('texts', () => {
     expect(originalModel({ ...row, from: OPUS, answered: 'claude-haiku-5-5' })).toBe(OPUS)
   })
 
-  test('numbers read the French way', () => {
+  test('numbers read short, as Claude Code writes them', () => {
     expect(formatTokens(999)).toBe('999')
-    expect(formatTokens(54_321)).toBe('54 k')
-    expect(formatTokens(999_700)).toBe('1,0 M')
-    expect(formatTokens(1_234_567)).toBe('1,2 M')
-    expect(formatTokens(12_600_000)).toBe('13 M')
-    expect(formatDuration(400)).toBe('1 s')
-    expect(formatDuration(8_400)).toBe('8 s')
-    expect(formatDuration(65_000)).toBe('1 min 5 s')
-    expect(formatDuration(3_725_000)).toBe('1 h 2 min')
+    expect(formatTokens(54_321)).toBe('54k')
+    expect(formatTokens(999_700)).toBe('1.0M')
+    expect(formatTokens(1_234_567)).toBe('1.2M')
+    expect(formatTokens(12_600_000)).toBe('13M')
+    expect(formatDuration(400)).toBe('1s')
+    expect(formatDuration(8_400)).toBe('8s')
+    expect(formatDuration(65_000)).toBe('1m 5s')
+    expect(formatDuration(3_725_000)).toBe('1h 2m')
   })
 
   test('the session totals: exact counts, and each model family’s share', () => {
@@ -183,9 +183,9 @@ describe('texts', () => {
       { key: 'haiku', label: 'Haiku', tokens: 180_000, percent: 90 },
       { key: 'opus', label: 'Opus', tokens: 20_000, percent: 10 },
     ])
-    expect(statsText(stats)).toBe('Cette session : 3 sous-agents · 200 k tokens (Haiku 90 %, Opus 10 %)')
-    expect(statsText({ agents: 1, tokens: {} })).toBe('Cette session : 1 sous-agent')
-    expect(statsText({ agents: 0, tokens: {} })).toBe('Cette session : aucun sous-agent pour l’instant.')
+    expect(statsText(stats)).toBe('This session: 3 subagents · 200k tokens (Haiku 90%, Opus 10%)')
+    expect(statsText({ agents: 1, tokens: {} })).toBe('This session: 1 subagent')
+    expect(statsText({ agents: 0, tokens: {} })).toBe('This session: no subagents yet.')
     expect(totalTokens({ input_tokens: 10, output_tokens: 5, cache_read_input_tokens: 100, cache_creation_input_tokens: null })).toBe(115)
   })
 

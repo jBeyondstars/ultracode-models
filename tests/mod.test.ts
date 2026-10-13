@@ -42,7 +42,7 @@ const RUNNING: AgentRow = {
   type: 'workflow-subagent',
   from: OPUS,
   plan: { model: 'haiku', effort: 'low' },
-  note: 'réglage du mod',
+  note: 'mod setting',
   status: 'running',
 }
 
@@ -138,7 +138,7 @@ function engine(on: On, seed: Seed = {}) {
       await gate.opened
     }
     w.spawned.push(e.model)
-    if (e.description === 'denied') return { deny: 'refusé par la politique' }
+    if (e.description === 'denied') return { deny: 'refused by policy' }
     // Like core: a fork always inherits; otherwise the call's model, else the parent's.
     const model = e.fork || e.model === undefined ? e.parentModel : (ALIASES[e.model] ?? e.model)
     return { model, agentId: `agent-${++count}` }
@@ -161,7 +161,7 @@ function engine(on: On, seed: Seed = {}) {
     }
   })
   on('turn.complete', ($, e) => ({ text: e.answer }))
-  on('session.compact', () => ({ messages: [{ role: 'user' as const, text: 'Résumé.', toolUses: [] }] }))
+  on('session.compact', () => ({ messages: [{ role: 'user' as const, text: 'Summary.', toolUses: [] }] }))
   on('prompt.submit', ($, e) => {
     w.contexts.push(e.context)
     const drop = w.drop
@@ -200,7 +200,7 @@ const status = async ($: Engine) => String((await $.tool.call({ tool: 'mcp__ultr
 
 const configure = async ($: Engine, command: unknown) => String((await $.tool.call({ tool: 'mcp__ultracode-models__configure', command })).result)
 
-const props = { title: 'Modèles des sous-agents', isFocused: true, bodyColumns: 80, placement: 'dock' as const, scroll: { offset: 0, bodyRows: 40 }, view: {} }
+const props = { title: 'Subagent models', isFocused: true, bodyColumns: 80, placement: 'dock' as const, scroll: { offset: 0, bodyRows: 40 }, view: {} }
 
 describe('every subagent runs on the chosen model', () => {
   test('an Agent tool subagent takes it at spawn, and the effort at each request', async ($, on) => {
@@ -277,8 +277,8 @@ describe('every subagent runs on the chosen model', () => {
       { agentId: 'agent-2', index: 0, model: OPUS, effort: 'high' },
     ])
     const listed = await status($)
-    expect(listed).toContain('"why":"hérité"')
-    expect(listed).toContain('"why":"mod désactivé"')
+    expect(listed).toContain('"why":"inherited"')
+    expect(listed).toContain('"why":"mod off"')
   })
 
   test('a running subagent keeps the plan it was spawned with', async ($, on) => {
@@ -329,7 +329,7 @@ describe('every subagent runs on the chosen model', () => {
     await start($)
     await run($, 'haiku')
     const refused = await $.agent.spawn(inWorkflow(1, { description: 'denied' }))
-    expect(refused.deny).toBe('refusé par la politique')
+    expect(refused.deny).toBe('refused by policy')
     await step($, 'agent-x')
     expect(w.sleeps).toEqual([])
     expect(w.sent).toEqual([{ agentId: 'agent-x', index: 0, model: OPUS, effort: 'high' }])
@@ -413,7 +413,7 @@ describe('the end of a subagent', () => {
     await complete($, two.agentId ?? '', 'error')
     await complete($, three.agentId ?? '', 'aborted')
     await complete($, four.agentId ?? '', 'answer')
-    expect(w.toasts).toEqual([expect.stringContaining('en échec sur Fable 5.1')])
+    expect(w.toasts).toEqual([expect.stringContaining('failed on Fable 5.1')])
     const listed = await status($)
     expect(listed).toContain('"label":"review:a","type":"workflow-subagent","workflowIndex":1,"status":"failed"')
     expect(listed).toContain('"label":"review:c","type":"workflow-subagent","workflowIndex":3,"status":"aborted"')
@@ -458,8 +458,8 @@ describe('the model is told', () => {
     const w = engine(on)
     await start($)
     await run($, 'haiku')
-    w.drop = 'occupé'
-    expect((await submit($, 'first')).drop).toBe('occupé')
+    w.drop = 'busy'
+    expect((await submit($, 'first')).drop).toBe('busy')
     await submit($, 'second')
     await submit($, 'third')
     expect(w.contexts.map(one => one?.[0]?.includes('model haiku') ?? false)).toEqual([true, true, false])
@@ -485,18 +485,18 @@ describe('commands and tools', () => {
     await run($, 'off')
     await run($, 'on')
     await run($, 'reset')
-    expect(w.statuses).toEqual([undefined, 'Sous-agents : Haiku 5.5 · medium', undefined, 'Sous-agents : Haiku 5.5 · medium', undefined])
+    expect(w.statuses).toEqual([undefined, 'Subagents: Haiku 5.5 · medium', undefined, 'Subagents: Haiku 5.5 · medium', undefined])
   })
 
   test('/ultramodels alone opens the pane, then closes it, and says when it waits', async ($, on) => {
     const w = engine(on)
     await start($)
-    expect(await run($, '')).toBe('Panneau des modèles des sous-agents ouvert.')
-    w.panes = [{ id: PANE, title: 'Modèles des sous-agents', isShown: true, isFocused: true, isPlaced: true }]
-    expect(await run($, '  ')).toBe('Panneau des modèles des sous-agents fermé.')
-    w.panes = [{ id: PANE, title: 'Modèles des sous-agents', isShown: false, isFocused: false, isPlaced: true }]
-    w.placement = { isPlaced: false, reason: 'terminal trop étroit' }
-    expect(await run($, '')).toBe('Panneau ouvert, en attente de place : terminal trop étroit')
+    expect(await run($, '')).toBe('Subagent models pane opened.')
+    w.panes = [{ id: PANE, title: 'Subagent models', isShown: true, isFocused: true, isPlaced: true }]
+    expect(await run($, '  ')).toBe('Subagent models pane closed.')
+    w.panes = [{ id: PANE, title: 'Subagent models', isShown: false, isFocused: false, isPlaced: true }]
+    w.placement = { isPlaced: false, reason: 'terminal too narrow' }
+    expect(await run($, '')).toBe('Pane opened, waiting for room: terminal too narrow')
     expect(w.opened).toEqual([PANE, PANE])
     expect(w.closed).toEqual([PANE])
   })
@@ -504,10 +504,10 @@ describe('commands and tools', () => {
   test('the configure tool runs the command words and never opens the pane', async ($, on) => {
     const w = engine(on)
     await start($)
-    expect(await configure($, 'haiku medium')).toContain('Tous les sous-agents : Haiku 5.5 · effort medium.')
-    expect(await configure($, '')).toContain('- Modèle : Haiku 5.5')
-    expect(await configure($, 42)).toContain('Modèle des sous-agents : activé')
-    expect(await configure($, 'gpt-5')).toContain('Modèle inconnu')
+    expect(await configure($, 'haiku medium')).toContain('Every subagent: Haiku 5.5 · effort medium.')
+    expect(await configure($, '')).toContain('- Model: Haiku 5.5')
+    expect(await configure($, 42)).toContain('Subagent models: on')
+    expect(await configure($, 'gpt-5')).toContain('Unknown model')
     expect(w.opened).toEqual([])
     expect(w.stored).toEqual([HAIKU_MEDIUM])
   })
@@ -534,7 +534,7 @@ describe('the session totals', () => {
     await step($, two.agentId, 'high', 0, HAIKU)
     await complete($, one.agentId ?? '', 'answer')
     await complete($, two.agentId ?? '', 'answer')
-    expect(await status($)).toContain('Cette session : 2 sous-agents · 6 tokens (Haiku 100 %)')
+    expect(await status($)).toContain('This session: 2 subagents · 6 tokens (Haiku 100%)')
   })
 
   test('a turn whose requests went uncounted here takes the turn’s own sum', async ($, on) => {
@@ -560,7 +560,7 @@ describe('the session totals', () => {
     await w.clock?.advance(8_000)
     await complete($, agent.agentId ?? '', 'answer')
     const ui = await $.ui.mount({ plugin: PLUGIN, surface: 'terminal', component: 'Pane', requestId: PANE, props })
-    expect((await ui.find({ type: 'Text', text: /read:a/ }))?.text).toContain('· 8 s')
+    expect((await ui.find({ type: 'Text', text: /read:a/ }))?.text).toContain('· 8s')
   })
 })
 
@@ -602,13 +602,13 @@ describe('the pane', () => {
     const desktop = await $.ui.mount({ plugin: PLUGIN, surface: 'desktop', component: 'Pane', requestId: PANE, props })
     const drawings = await desktop.findAll({ type: 'Svg' })
     expect(drawings).toHaveLength(2)
-    expect(String(drawings[0]?.props.alt)).toBe('Cette session : 1 sous-agent · 2 tokens (Haiku 100 %)')
+    expect(String(drawings[0]?.props.alt)).toBe('This session: 1 subagent · 2 tokens (Haiku 100%)')
     expect(String(drawings[1]?.props.source)).toContain('read:a')
     await desktop.unmount()
 
     const terminal = await $.ui.mount({ plugin: PLUGIN, surface: 'terminal', component: 'Pane', requestId: PANE, props })
     expect(await terminal.findAll({ type: 'Svg' })).toHaveLength(0)
-    expect(await terminal.find({ type: 'Text', text: /Cette session : 1 sous-agent/ })).toBeDefined()
+    expect(await terminal.find({ type: 'Text', text: /This session: 1 subagent/ })).toBeDefined()
     expect(await terminal.find({ type: 'Text', text: /Opus 5\.5 → Haiku 5\.5 · read:a/ })).toBeDefined()
   })
 
@@ -618,12 +618,12 @@ describe('the pane', () => {
     const ui = await $.ui.mount({ plugin: PLUGIN, surface: 'desktop', component: 'Pane', requestId: PANE, props })
     await ui.press({ key: 'enabled' })
     expect((w.stored.at(-1) as Config).enabled).toBe(false)
-    expect(await ui.find({ type: 'Text', text: '○ Désactivé' })).toBeDefined()
+    expect(await ui.find({ type: 'Text', text: '○ Off' })).toBeDefined()
     await ui.press({ key: 'enabled' })
     expect((w.stored.at(-1) as Config).enabled).toBe(true)
   })
 
-  test('Effacer drops finished subagents from the list and keeps the running ones', async ($, on) => {
+  test('Clear drops finished subagents from the list and keeps the running ones', async ($, on) => {
     engine(on)
     await start($)
     await run($, 'haiku')

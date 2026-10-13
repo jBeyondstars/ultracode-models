@@ -7,8 +7,6 @@ A Claude Code mod (terminal and Desktop) that sets **the model and effort of eve
 
 Pick Haiku and **every** subagent runs on Haiku, whatever Claude or the workflow script asks for. The main conversation is never changed.
 
-Its interface (pane, command replies, notifications) is in French.
-
 ## Install
 
 In Claude Code started from a terminal (`claude`), type:
@@ -30,7 +28,7 @@ To try a local copy without installing it: `claude --plugin-dir <folder>`, or ad
 | `/ultramodels sonnet medium` | sets the model and effort of every subagent |
 | `/ultramodels effort low` | changes only the effort |
 | `/ultramodels model <id> [effort]` | any model id (Bedrock ARN, gateway…) |
-| `/ultramodels on`, `off`, `status`, `reset` | enables, disables, shows the settings, resets everything to inherit |
+| `/ultramodels on`, `off`, `status`, `reset` | turns the mod on or off, shows the settings, resets everything to inherit |
 | `/ultramodels log clear` | removes finished subagents from the pane's list |
 | `/ultramodels help` | lists the commands |
 
@@ -47,7 +45,7 @@ The pane (`/ultramodels`) reads from top to bottom:
 On Desktop, VS Code and mobile, the counters and the list are drawn as SVG and follow the light or dark theme. In the terminal they are plain text, and these keys work while the pane has focus:
 - `h` `s` `o` `f` `i` for the model (Haiku, Sonnet, Opus, Fable, inherit);
 - `0` to `5` for the effort;
-- `a` to enable or disable the mod;
+- `t` to turn the mod on or off;
 - `c` to clear the list.
 
 The pane shows no "dollars saved", because they cannot be computed correctly:

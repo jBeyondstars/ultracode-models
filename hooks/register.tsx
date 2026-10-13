@@ -28,7 +28,7 @@ import type { Alias } from './logic'
 import { ROW_HEIGHT, STATS_HEIGHT, rowsSvg, statsSvg } from './svg'
 
 const PANE = 'ultracode-models'
-const TITLE = 'Modèles des sous-agents'
+const TITLE = 'Subagent models'
 const STORE_KEY = 'config'
 /** Finished subagents the pane's log keeps. */
 const MAX_ROWS = 60
@@ -73,14 +73,14 @@ type Session = {
 /** The model buttons: inherit, the four families, and a full id the person set, if any. */
 function modelChoices(current: string): { value: string; label: string; hotkey?: string }[] {
   const choices: { value: string; label: string; hotkey?: string }[] = [
-    { value: 'inherit', label: 'Hérité', hotkey: 'i' },
+    { value: 'inherit', label: 'Inherit', hotkey: 'i' },
     ...MODELS.map(one => ({ value: one.alias, label: shortModel(one.alias), hotkey: one.alias.charAt(0) })),
   ]
   return choices.some(one => one.value === current) ? choices : [...choices, { value: current, label: shortModel(current) }]
 }
 
 const EFFORT_CHOICES: { value: EffortChoice; label: string; hotkey: string }[] = [
-  { value: 'inherit', label: 'Hérité', hotkey: '0' },
+  { value: 'inherit', label: 'Inherit', hotkey: '0' },
   ...EFFORTS.map((value, index) => ({ value, label: value, hotkey: String(index + 1) })),
 ]
 
@@ -153,10 +153,10 @@ async function togglePane($: EngineInterface): Promise<string> {
   const pane = (await $.ui.panes()).find(one => one.id === PANE)
   if (pane?.isShown && pane.isPlaced) {
     await $.ui.close({ id: PANE })
-    return 'Panneau des modèles des sous-agents fermé.'
+    return 'Subagent models pane closed.'
   }
   const opened = await $.ui.open({ id: PANE, title: TITLE, focus: true, columns: 76, rows: 20 })
-  return opened.isPlaced ? 'Panneau des modèles des sous-agents ouvert.' : `Panneau ouvert, en attente de place : ${opened.reason}`
+  return opened.isPlaced ? 'Subagent models pane opened.' : `Pane opened, waiting for room: ${opened.reason}`
 }
 
 async function clearLog($: EngineInterface): Promise<void> {
@@ -171,7 +171,7 @@ async function command($: EngineInterface, s: Session, args: string, canToggle: 
   if (outcome.kind === 'show') return describeConfig(s.current)
   if (outcome.kind === 'clear-log') {
     await clearLog($)
-    return 'Sous-agents terminés retirés de la liste.'
+    return 'Finished subagents removed from the list.'
   }
   if (outcome.kind === 'error') return outcome.usage ? `${outcome.message}\n\n\`\`\`text\n${USAGE}\n\`\`\`` : outcome.message
 
@@ -222,8 +222,8 @@ export const register: Register = on => {
     await quietly(load($, s))
     await $.command.register({
       name: 'ultramodels',
-      description: 'Modèle et effort de tous les sous-agents (panneau, ou /ultramodels haiku medium)',
-      argumentHint: '[modèle [effort] | model <identifiant> | effort … | on|off | status | reset | log clear]',
+      description: 'Model and effort of every subagent (pane, or /ultramodels haiku medium)',
+      argumentHint: '[model [effort] | model <id> | effort … | on|off | status | reset | log clear | help]',
     })
     await $.tool.register({
       name: 'status',
@@ -430,7 +430,7 @@ export const register: Register = on => {
       if (e.reason === 'error' && planned !== undefined && !s.toasted.has(toast)) {
         s.toasted.add(toast)
         bound(s.toasted, MAX_TRACKED)
-        $.ui.toast(`Sous-agents en échec sur ${modelLabel(planned)} (erreur d’API). Si ce modèle ne vous est pas accessible, changez-le avec /ultramodels.`, {
+        $.ui.toast(`Subagents failed on ${modelLabel(planned)} (API error). If this model is not available to you, change it with /ultramodels.`, {
           timeoutMs: 8000,
         })
       }
@@ -474,27 +474,27 @@ export const register: Register = on => {
     const header = (
       <Box flexDirection="column">
         <Box flexDirection="row" columnGap={1} alignItems="center">
-          <Text bold>Sous-agents</Text>
-          <Text color={cfg.enabled ? 'success' : 'inactive'}>{cfg.enabled ? '● Actif' : '○ Désactivé'}</Text>
+          <Text bold>Subagents</Text>
+          <Text color={cfg.enabled ? 'success' : 'inactive'}>{cfg.enabled ? '● On' : '○ Off'}</Text>
           <Button
             key="enabled"
-            label={cfg.enabled ? 'Désactiver' : 'Activer'}
-            hotkey="a"
+            label={cfg.enabled ? 'Turn off' : 'Turn on'}
+            hotkey="t"
             onPress={choose(c => ({ ...c, enabled: !c.enabled }))}
           />
         </Box>
         <Text dimColor>
           {!cfg.enabled
-            ? 'Les sous-agents gardent les modèles prévus par Claude Code.'
+            ? 'Subagents keep the models Claude Code gives them.'
             : isNoop(cfg)
-              ? 'Tout est hérité : rien n’est changé.'
-              : 'Outil Agent, agents des workflows et leurs sous-agents.'}
+              ? 'Everything is inherited: nothing is changed.'
+              : 'Agent tool, workflow agents and their own subagents.'}
         </Text>
       </Box>
     )
     const models = (
       <Box flexDirection="column">
-        <Text dimColor>Modèle</Text>
+        <Text dimColor>Model</Text>
         <Box flexDirection="row" flexWrap="wrap" columnGap={1}>
           {modelChoices(cfg.model).map(one => (
             <Button
@@ -527,8 +527,8 @@ export const register: Register = on => {
     const recent = rows.slice(-SHOWN_ROWS).reverse()
     const recentHeader = (
       <Box flexDirection="row" columnGap={1} alignItems="center">
-        <Text bold>Récents</Text>
-        {rows.some(row => row.status !== 'running') && <Button key="clear" label="Effacer" hotkey="c" onPress={() => clearLog($)} />}
+        <Text bold>Recent</Text>
+        {rows.some(row => row.status !== 'running') && <Button key="clear" label="Clear" hotkey="c" onPress={() => clearLog($)} />}
       </Box>
     )
 
@@ -543,7 +543,7 @@ export const register: Register = on => {
           {efforts}
           <Box flexDirection="column">
             {recentHeader}
-            {recent.length === 0 && <Text dimColor>Aucun sous-agent récent.</Text>}
+            {recent.length === 0 && <Text dimColor>No recent subagents.</Text>}
             {recent.map(row => (
               <Text wrap="truncate-end" dimColor={row.status !== 'running'}>
                 {rowLine(row)}
@@ -566,7 +566,7 @@ export const register: Register = on => {
         <Box flexDirection="column">
           {recentHeader}
           {recent.length === 0 ? (
-            <Text dimColor>Aucun sous-agent récent.</Text>
+            <Text dimColor>No recent subagents.</Text>
           ) : (
             <Svg key="rows" source={rowsSvg(recent, width)} alt={recent.map(rowLine).join('\n')} width={width} height={recent.length * ROW_HEIGHT} />
           )}

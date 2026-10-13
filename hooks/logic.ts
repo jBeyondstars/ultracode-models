@@ -24,12 +24,12 @@ export type Decision = { plan?: Plan; note: string }
 
 /** The plan every subagent gets under these settings, or why it gets none. */
 export function planFor(config: Config): Decision {
-  if (!config.enabled) return { note: 'mod désactivé' }
+  if (!config.enabled) return { note: 'mod off' }
   const plan: Plan = {
     ...(config.model === 'inherit' ? {} : { model: config.model }),
     ...(config.effort === 'inherit' ? {} : { effort: config.effort }),
   }
-  return plan.model === undefined && plan.effort === undefined ? { note: 'hérité' } : { plan, note: 'réglage du mod' }
+  return plan.model === undefined && plan.effort === undefined ? { note: 'inherited' } : { plan, note: 'mod setting' }
 }
 
 const FAMILY = /claude-(?:haiku|sonnet|opus|fable|mythos)-\d+(?:-\d+)?/i
@@ -86,14 +86,14 @@ export function normalizeConfig(value: unknown): Config {
 }
 
 export function modelLabel(choice: string | undefined): string {
-  if (choice === undefined || choice === 'inherit') return 'hérité'
+  if (choice === undefined || choice === 'inherit') return 'inherited'
   const lower = choice.toLowerCase()
   const known = MODELS.find(one => one.alias === lower || lower.includes(one.id))
   return known?.label ?? printable(choice)
 }
 
 export function effortLabel(choice: EffortChoice | StepEffort | undefined): string {
-  if (choice === undefined || choice === 'inherit') return 'hérité'
+  if (choice === undefined || choice === 'inherit') return 'inherited'
   return String(choice)
 }
 
@@ -112,19 +112,19 @@ export function isNoop(config: Config): boolean {
 /** The status-bar line, or undefined while the mod changes nothing. */
 export function statusLine(config: Config): string | undefined {
   if (isNoop(config)) return undefined
-  const model = config.model === 'inherit' ? 'modèle hérité' : modelLabel(config.model)
-  const effort = config.effort === 'inherit' ? 'effort hérité' : config.effort
-  return `Sous-agents : ${model} · ${effort}`
+  const model = config.model === 'inherit' ? 'inherited model' : modelLabel(config.model)
+  const effort = config.effort === 'inherit' ? 'inherited effort' : config.effort
+  return `Subagents: ${model} · ${effort}`
 }
 
 /** The settings as a markdown reply. */
 export function describeConfig(config: Config): string {
   return [
-    `**Modèle des sous-agents : ${config.enabled ? 'activé' : 'désactivé'}**`,
+    `**Subagent models: ${config.enabled ? 'on' : 'off'}**`,
     '',
-    `- Modèle : ${modelLabel(config.model)}`,
-    `- Effort : ${effortLabel(config.effort)}`,
-    '- S’applique à tous les sous-agents : outil Agent, agent() des workflows, et leurs propres sous-agents.',
+    `- Model: ${modelLabel(config.model)}`,
+    `- Effort: ${effortLabel(config.effort)}`,
+    '- Applies to every subagent: Agent tool calls, workflow agent() calls, and their own subagents.',
   ].join('\n')
 }
 
@@ -184,23 +184,23 @@ export function totalTokens(usage: Usage): number {
   return (usage.input_tokens ?? 0) + (usage.output_tokens ?? 0) + (usage.cache_read_input_tokens ?? 0) + (usage.cache_creation_input_tokens ?? 0)
 }
 
-/** A token count as the pane shows it, French style: 999, 54 k, 1,2 M. */
+/** A token count as the pane shows it: 999, 54k, 1.2M. */
 export function formatTokens(count: number): string {
   if (count >= 999_500) {
     const millions = count / 1_000_000
-    return `${(millions >= 9.95 ? Math.round(millions).toString() : millions.toFixed(1).replace('.', ','))} M`
+    return `${millions >= 9.95 ? Math.round(millions).toString() : millions.toFixed(1)}M`
   }
-  if (count >= 1_000) return `${Math.round(count / 1_000)} k`
+  if (count >= 1_000) return `${Math.round(count / 1_000)}k`
   return String(Math.round(count))
 }
 
-/** A duration as the pane shows it: 8 s, 1 min 5 s, 1 h 2 min. */
+/** A duration as the pane shows it: 8s, 1m 5s, 1h 2m. */
 export function formatDuration(ms: number): string {
   const seconds = Math.max(1, Math.round(ms / 1_000))
-  if (seconds < 60) return `${seconds} s`
+  if (seconds < 60) return `${seconds}s`
   const minutes = Math.floor(seconds / 60)
-  if (minutes < 60) return `${minutes} min ${seconds % 60} s`
-  return `${Math.floor(minutes / 60)} h ${minutes % 60} min`
+  if (minutes < 60) return `${minutes}m ${seconds % 60}s`
+  return `${Math.floor(minutes / 60)}h ${minutes % 60}m`
 }
 
 export type Share = { key: ModelKey; label: string; tokens: number; percent: number }
@@ -219,7 +219,7 @@ export function shares(stats: Stats): Share[] {
     .sort((a, b) => b[1] - a[1])
     .map(([key, tokens]) => ({
       key,
-      label: key === 'other' ? 'Autres' : shortModel(key),
+      label: key === 'other' ? 'Other' : shortModel(key),
       tokens,
       percent: Math.round((tokens / total) * 100),
     }))
@@ -231,18 +231,18 @@ export function statsTotal(stats: Stats): number {
 
 /** The session's numbers as one line: how many subagents, their tokens, and each model's share. */
 export function statsText(stats: Stats): string {
-  if (stats.agents === 0) return 'Cette session : aucun sous-agent pour l’instant.'
-  const agents = `${stats.agents} sous-agent${stats.agents > 1 ? 's' : ''}`
+  if (stats.agents === 0) return 'This session: no subagents yet.'
+  const agents = `${stats.agents} subagent${stats.agents > 1 ? 's' : ''}`
   const total = statsTotal(stats)
-  if (total === 0) return `Cette session : ${agents}`
-  const split = shares(stats).map(one => `${one.label} ${one.percent} %`).join(', ')
-  return `Cette session : ${agents} · ${formatTokens(total)} tokens (${split})`
+  if (total === 0) return `This session: ${agents}`
+  const split = shares(stats).map(one => `${one.label} ${one.percent}%`).join(', ')
+  return `This session: ${agents} · ${formatTokens(total)} tokens (${split})`
 }
 
 /** What a row says after its model: its effort, then how long it ran and what it used. */
 export function rowMeta(row: AgentRow): string[] {
   const parts = row.effort === undefined ? [] : [row.effort]
-  if (row.status === 'running') return [...parts, 'en cours']
+  if (row.status === 'running') return [...parts, 'running']
   if (row.startedAt !== undefined && row.endedAt !== undefined) parts.push(formatDuration(row.endedAt - row.startedAt))
   if (row.tokens !== undefined && row.tokens > 0) parts.push(`${formatTokens(row.tokens)} tokens`)
   return parts
@@ -270,15 +270,15 @@ export type CommandOutcome =
   | { kind: 'error'; message: string; usage?: true }
 
 export const USAGE = [
-  '/ultramodels                          ouvre ou ferme le panneau',
-  '/ultramodels <modèle> [effort]        modèle de tous les sous-agents : haiku, sonnet, opus, fable,',
-  '                                      inherit, ou un identifiant contenant « claude- »',
-  '/ultramodels model <identifiant> [effort]   n’importe quel identifiant (ARN Bedrock, passerelle…)',
-  '/ultramodels effort <effort>          low, medium, high, xhigh, max ou inherit',
-  '/ultramodels on | off | status | reset | log clear',
+  '/ultramodels                          opens or closes the pane',
+  '/ultramodels <model> [effort]         model of every subagent: haiku, sonnet, opus, fable,',
+  '                                      inherit, or an id containing "claude-"',
+  '/ultramodels model <id> [effort]      any model id (Bedrock ARN, gateway…)',
+  '/ultramodels effort <effort>          low, medium, high, xhigh, max or inherit',
+  '/ultramodels on | off | status | reset | log clear | help',
 ].join('\n')
 
-const INHERIT = new Set(['inherit', 'herite', 'hérité', 'defaut', 'défaut'])
+const INHERIT = new Set(['inherit', 'default'])
 
 function parseModel(word: string | undefined): string | undefined {
   if (word === undefined) return undefined
@@ -317,34 +317,34 @@ export function runCommand(config: Config, args: string): CommandOutcome {
   const error = (message: string): CommandOutcome => ({ kind: 'error', message })
 
   if (verb === undefined) return { kind: 'toggle' }
-  if (verb === 'status' || verb === 'statut' || verb === 'show') return { kind: 'show' }
-  if (verb === 'help' || verb === 'aide') return { kind: 'error', message: 'Utilisation :', usage: true }
-  if (verb === 'on' || verb === 'activer') return set({ ...config, enabled: true }, 'Mod activé.')
-  if (verb === 'off' || verb === 'desactiver' || verb === 'désactiver') {
-    return set({ ...config, enabled: false }, 'Mod désactivé : les sous-agents gardent les modèles prévus par Claude Code.')
+  if (verb === 'status' || verb === 'show') return { kind: 'show' }
+  if (verb === 'help') return { kind: 'error', message: 'Usage:', usage: true }
+  if (verb === 'on') return set({ ...config, enabled: true }, 'Mod turned on.')
+  if (verb === 'off') {
+    return set({ ...config, enabled: false }, 'Mod turned off: subagents keep the models Claude Code gives them.')
   }
-  if (verb === 'reset') return set({ ...DEFAULT_CONFIG }, 'Réglages remis à zéro : tout est hérité.')
+  if (verb === 'reset') return set({ ...DEFAULT_CONFIG }, 'Settings reset: everything is inherited.')
   if (verb === 'log' && rest[0]?.toLowerCase() === 'clear') return { kind: 'clear-log' }
 
   if (verb === 'effort') {
     const effort = parseEffort(rest[0])
     return effort === undefined
-      ? error(`Effort inconnu : ${code(rest[0] ?? '')}. Valeurs : ${EFFORTS.join(', ')} ou inherit.`)
-      : set({ ...config, effort }, `Effort de tous les sous-agents : ${effortLabel(effort)}.`)
+      ? error(`Unknown effort: ${code(rest[0] ?? '')}. Values: ${EFFORTS.join(', ')} or inherit.`)
+      : set({ ...config, effort }, `Effort of every subagent: ${effortLabel(effort)}.`)
   }
 
-  const explicit = verb === 'model' || verb === 'modele' || verb === 'modèle'
+  const explicit = verb === 'model'
   const modelWord = explicit ? rest[0] : head
   const model = explicit ? parseAnyModel(modelWord) : parseModel(modelWord)
   if (model !== undefined) {
     const effortWord = explicit ? rest[1] : rest[0]
     const effort = effortWord === undefined ? config.effort : parseEffort(effortWord)
-    if (effort === undefined) return error(`Effort inconnu : ${code(effortWord ?? '')}. Valeurs : ${EFFORTS.join(', ')} ou inherit.`)
-    return set({ ...config, enabled: true, model, effort }, `Tous les sous-agents : ${modelLabel(model)} · effort ${effortLabel(effort)}.`)
+    if (effort === undefined) return error(`Unknown effort: ${code(effortWord ?? '')}. Values: ${EFFORTS.join(', ')} or inherit.`)
+    return set({ ...config, enabled: true, model, effort }, `Every subagent: ${modelLabel(model)} · effort ${effortLabel(effort)}.`)
   }
 
   if (explicit || (head !== undefined && /[-:/.@]/.test(head))) {
-    return error(`Modèle inconnu : ${code(modelWord ?? '')}. Pour un identifiant sans « claude- », écrivez /ultramodels model <identifiant>.`)
+    return error(`Unknown model: ${code(modelWord ?? '')}. For an id without "claude-", type /ultramodels model <id>.`)
   }
-  return { kind: 'error', message: `Commande inconnue : ${code(head ?? '')}.`, usage: true }
+  return { kind: 'error', message: `Unknown command: ${code(head ?? '')}.`, usage: true }
 }

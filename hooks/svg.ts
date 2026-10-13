@@ -50,11 +50,11 @@ export function statsSvg(stats: Stats, width: number): string {
   const total = statsTotal(stats)
   const split = shares(stats)
   const legend = split
-    .map(one => `<tspan class="${one.key}" font-weight="600">${xml(one.label)}</tspan><tspan class="m"> ${one.percent} %</tspan>`)
+    .map(one => `<tspan class="${one.key}" font-weight="600">${xml(one.label)}</tspan><tspan class="m"> ${one.percent}%</tspan>`)
     .join('<tspan class="m">  ·  </tspan>')
-  const head = `<text class="m" x="0" y="13" font-family="${FONT}" font-size="11.5">Cette session</text>`
+  const head = `<text class="m" x="0" y="13" font-family="${FONT}" font-size="11.5">This session</text>`
     + (legend === '' ? '' : `<text x="${width}" y="13" text-anchor="end" font-family="${FONT}" font-size="11.5">${legend}</text>`)
-  const agents = stats.agents === 0 ? 'Aucun sous-agent pour l’instant' : `${stats.agents} sous-agent${stats.agents > 1 ? 's' : ''}`
+  const agents = stats.agents === 0 ? 'No subagents yet' : `${stats.agents} subagent${stats.agents > 1 ? 's' : ''}`
   const numbers = total > 0 ? `${agents} · ${formatTokens(total)} tokens` : agents
   const line = `<text class="t" x="0" y="33" font-family="${FONT}" font-size="15" font-weight="600">${xml(fit(numbers, 15, width))}</text>`
 

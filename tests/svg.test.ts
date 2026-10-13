@@ -13,7 +13,7 @@ const ROW: AgentRow = {
   sent: 'claude-haiku-5-5',
   answered: 'claude-haiku-5-5',
   effort: 'medium',
-  note: 'réglage du mod',
+  note: 'mod setting',
   status: 'done',
   startedAt: 0,
   endedAt: 8_000,
@@ -24,9 +24,9 @@ describe('the banner', () => {
   test('says the exact numbers and each family’s share, in both themes', () => {
     const source = statsSvg({ agents: 3, tokens: { 'claude-haiku-5-5': 162_000, 'claude-opus-5-5': 18_000 } }, 400)
     expect(source).toStartWith('<svg xmlns="http://www.w3.org/2000/svg" width="400" height="50"')
-    expect(source).toContain('3 sous-agents · 180 k tokens')
-    expect(source).toContain('>Haiku</tspan><tspan class="m"> 90 %</tspan>')
-    expect(source).toContain('>Opus</tspan><tspan class="m"> 10 %</tspan>')
+    expect(source).toContain('3 subagents · 180k tokens')
+    expect(source).toContain('>Haiku</tspan><tspan class="m"> 90%</tspan>')
+    expect(source).toContain('>Opus</tspan><tspan class="m"> 10%</tspan>')
     expect(source).toContain('class="bg-haiku"')
     expect(source).toContain('@media (prefers-color-scheme: dark)')
     expect(STATS_HEIGHT).toBe(50)
@@ -34,7 +34,7 @@ describe('the banner', () => {
 
   test('before any subagent, an empty track and no share', () => {
     const source = statsSvg({ agents: 0, tokens: {} }, 300)
-    expect(source).toContain('Aucun sous-agent pour l’instant')
+    expect(source).toContain('No subagents yet')
     expect(source).toContain('<rect class="k" x="0" y="41" width="300"')
     expect(source).not.toContain('<rect class="bg-')
   })
@@ -48,14 +48,14 @@ describe('the list', () => {
     expect(source).toContain('class="bg-haiku"')
     expect(source).toContain('font-weight="600">Haiku</text>')
     expect(source).toContain('<tspan class="t">read:core</tspan>')
-    expect(source).toContain('medium · 8 s · 54 k tokens')
+    expect(source).toContain('medium · 8s · 54k tokens')
     expect(source).toContain(`height="${ROW_HEIGHT}"`)
   })
 
   test('a running row spins, unless motion is reduced', () => {
     const source = rowsSvg([{ ...ROW, status: 'running' }], 420)
     expect(source).toContain('class="run spin"')
-    expect(source).toContain('en cours')
+    expect(source).toContain('running')
     expect(source).toContain('@media (prefers-reduced-motion: reduce){.spin{animation:none}}')
   })
 
@@ -74,9 +74,9 @@ describe('the list', () => {
   })
 
   test('on a narrow pane the numbers give way to the label: the effort first, then the tokens', () => {
-    expect(metaFor(ROW, 80, 460).meta).toBe('medium · 8 s · 54 k tokens')
-    expect(metaFor(ROW, 80, 300).meta).toBe('8 s · 54 k tokens')
-    expect(metaFor(ROW, 80, 240).meta).toBe('8 s')
+    expect(metaFor(ROW, 80, 460).meta).toBe('medium · 8s · 54k tokens')
+    expect(metaFor(ROW, 80, 300).meta).toBe('8s · 54k tokens')
+    expect(metaFor(ROW, 80, 240).meta).toBe('8s')
     expect(metaFor(ROW, 80, 240).room).toBeGreaterThan(100)
   })
 
