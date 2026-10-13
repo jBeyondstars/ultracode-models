@@ -7,9 +7,9 @@ A Claude Code mod (terminal and Desktop) that sets **the model and effort of eve
 
 Pick Haiku and **every** subagent runs on Haiku, whatever Claude or the workflow script asks for. The main conversation is never changed.
 
-![The Subagent models pane in Claude Desktop: every subagent set to Haiku at medium effort, and three finished subagents](docs/pane.png)
+![The Subagent models pane in Claude Desktop: every subagent set to Haiku at low effort, the session's tokens, estimated price and cache share, and six finished subagents](docs/pane.png)
 
-*The pane in Claude Desktop. Two of these subagents asked for Sonnet and Opus; both ran on Haiku, as the struck-through names show.*
+*The pane in Claude Desktop. Four of these subagents asked for Sonnet or Opus; all of them ran on Haiku, as the struck-through names show.*
 
 ## Install
 
