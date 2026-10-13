@@ -1,0 +1,9 @@
+{
+  "name": "ultracode-models",
+  "version": "0.2.0",
+  "description": "Choisit le modèle et l'effort de tous les sous-agents (outil Agent, agents des workflows Ultracode et leurs sous-agents) : panneau et commande /ultramodels.",
+  "author": {
+    "name": "jBeyondstars"
+  },
+  "types": "./types/index.d.ts"
+}

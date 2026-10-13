@@ -1,0 +1,13 @@
+{
+  "name": "ultracode-models",
+  "description": "Pick the model and effort every Claude Code subagent runs on, Ultracode workflow agents included.",
+  "owner": {
+    "name": "jBeyondstars"
+  },
+  "plugins": [
+    {
+      "name": "ultracode-models",
+      "source": "./"
+    }
+  ]
+}
